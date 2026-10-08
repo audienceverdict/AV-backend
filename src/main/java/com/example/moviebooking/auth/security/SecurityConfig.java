@@ -1,0 +1,34 @@
+package com.example.moviebooking.auth.security;
+import com.example.moviebooking.common.exception.ApiErrors;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.web.cors.*;
+import java.util.*;
+@Configuration public class SecurityConfig {
+ @Bean SecurityFilterChain security(HttpSecurity http,JwtAuthenticationFilter jwt,ObjectMapper mapper)throws Exception {
+ return http.csrf(c->c.disable()).cors(c->{}).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+ .authorizeHttpRequests(a->a
+  .requestMatchers(HttpMethod.POST,"/api/v1/auth/email-otp/request","/api/v1/auth/email-otp/verify","/api/v1/auth/email-otp/register").permitAll()
+  .requestMatchers(HttpMethod.GET,"/api/v1/auth/me").authenticated()
+  .requestMatchers("/api/v1/admin/**","/api/v1/bookings/admin/**","/api/v1/reviews/admin/**").hasRole("ADMIN")
+  .requestMatchers("/api/v1/notifications/admin/**").hasRole("ADMIN")
+  .requestMatchers("/api/v1/waiting-list/admin").hasRole("ADMIN")
+  .requestMatchers("/api/v1/notifications").authenticated()
+  .requestMatchers("/api/v1/bookings/**","/api/v1/waiting-list/**").authenticated()
+  .requestMatchers(HttpMethod.GET,"/api/v1/**").permitAll()
+  .requestMatchers(HttpMethod.POST,"/api/v1/movies/**","/api/v1/theatres/**","/api/v1/shows/**").hasRole("ADMIN")
+  .requestMatchers(HttpMethod.PUT,"/api/v1/movies/**","/api/v1/theatres/**","/api/v1/shows/**").hasRole("ADMIN")
+  .requestMatchers(HttpMethod.DELETE,"/api/v1/movies/**","/api/v1/theatres/**","/api/v1/shows/**").hasRole("ADMIN")
+  .anyRequest().authenticated())
+ .exceptionHandling(e->e.authenticationEntryPoint((r,s,x)->{s.setStatus(401);s.setContentType("application/json");mapper.writeValue(s.getOutputStream(),ApiErrors.of(401,"UNAUTHORIZED","Authentication required",r.getRequestURI()));}).accessDeniedHandler((r,s,x)->{s.setStatus(403);s.setContentType("application/json");mapper.writeValue(s.getOutputStream(),ApiErrors.of(403,"FORBIDDEN","Access denied",r.getRequestURI()));}))
+ .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class).build();}
+ @Bean FilterRegistrationBean<JwtAuthenticationFilter> registration(JwtAuthenticationFilter filter){var bean=new FilterRegistrationBean<>(filter);bean.setEnabled(false);return bean;}
+ @Bean CorsConfigurationSource corsConfigurationSource(@Value("${app.cors-origins}") String origins){var c=new CorsConfiguration();c.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).toList());c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));c.setAllowedHeaders(List.of("Authorization","Content-Type"));var source=new UrlBasedCorsConfigurationSource();source.registerCorsConfiguration("/api/**",c);return source;}
+}

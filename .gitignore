@@ -1,0 +1,15 @@
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+
+backend/target/
+.m2/
+.vite/
+.env
+**/.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+*.log
