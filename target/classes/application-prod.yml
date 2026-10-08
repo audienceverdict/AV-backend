@@ -1,17 +1,21 @@
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/movie_booking?createDatabaseIfNotExist=true
-    username: root 
+    username: root
     password: root
+
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: update
+
   flyway:
-    enabled: true
+    enabled: false
+
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+
   mail:
     host: smtp.gmail.com
     port: 587
@@ -23,11 +27,14 @@ spring:
       mail.smtp.connectiontimeout: 10000
       mail.smtp.timeout: 10000
       mail.smtp.writetimeout: 10000
+
 notifications:
   email-from: audienceverdict@gmail.com
+
 jwt:
   secret: CHANGE_ME_WITH_A_RANDOM_SECRET_OF_AT_LEAST_32_BYTES
   expiration-ms: 2592000000
+
 auth:
   mobile:
     country-code: 91
@@ -37,12 +44,21 @@ auth:
     resend-cooldown-seconds: 30
     max-attempts: 5
     max-requests-per-hour: 10
+
 app:
-  cors-origins: http://localhost:5173
+  cors-origins: "*"
   admin:
     mobile: ""
-    email: ""
+    email: "audienceverdict@gmail.com"
+
 server:
+  port: 443
+  ssl:
+    enabled: true
+    key-store: /opt/audience-verdict/ssl/audienceverdict.p12
+    key-store-password: Mymom&dad@123
+    key-store-type: PKCS12
+    key-alias: tomcat
   error:
     include-message: never
 

@@ -41,7 +41,7 @@ app:
   cors-origins: http://localhost:5173
   admin:
     mobile: ""
-    email: ""
+    email: "audienceverdict@gmail.com"
 server:
   error:
     include-message: never
