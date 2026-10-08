@@ -1,6 +1,7 @@
 package com.example.moviebooking.auth.service;
 
 import com.example.moviebooking.auth.entity.Role;
+import com.example.moviebooking.auth.entity.User;
 import com.example.moviebooking.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.UUID;
 
 @Component
 @Profile("prod")
@@ -35,11 +37,32 @@ public class ProductionAdminProvisioner implements ApplicationRunner {
             return;
         }
 
-        users.findByEmailIgnoreCase(adminEmail).ifPresentOrElse(user -> {
+        var existing = users.findByEmailIgnoreCase(adminEmail);
+        User user;
+        boolean changed;
+        if (existing.isPresent()) {
+            user = existing.get();
+            changed = false;
+        } else {
+            user = new User();
+            user.name = "Administrator";
+            user.email = adminEmail;
+            // User.mobile is required and unique in the current schema. Admins authenticate by email OTP.
+            user.mobile = "ADMIN-" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+            changed = true;
+        }
+
+        if (user.role != Role.ADMIN) {
             user.role = Role.ADMIN;
+            changed = true;
+        }
+        if (!user.enabled) {
             user.enabled = true;
+            changed = true;
+        }
+        if (changed) {
             users.save(user);
-            log.info("Enabled configured production admin account {}", adminEmail);
-        }, () -> log.warn("Configured production admin email {} has no user account; create the account before admin login", adminEmail));
+        }
+        log.info("Provisioned configured production admin account {}", adminEmail);
     }
 }
