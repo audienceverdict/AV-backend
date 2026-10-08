@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/movie_booking?createDatabaseIfNotExist=true
+    username: root 
+    password: root
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: audienceverdict@gmail.com
+    password: hzud dodf lzzh qbkg
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+notifications:
+  email-from: audienceverdict@gmail.com
+jwt:
+  secret: CHANGE_ME_WITH_A_RANDOM_SECRET_OF_AT_LEAST_32_BYTES
+  expiration-ms: 2592000000
+auth:
+  mobile:
+    country-code: 91
+    national-length: 10
+  otp:
+    expiration-seconds: 300
+    resend-cooldown-seconds: 30
+    max-attempts: 5
+    max-requests-per-hour: 10
+app:
+  cors-origins: http://localhost:5173
+  admin:
+    mobile: ""
+    email: ""
+server:
+  error:
+    include-message: never
+
+booking:
+  seat-hold-minutes: 5
+  waiting-list-offer-minutes: 5
