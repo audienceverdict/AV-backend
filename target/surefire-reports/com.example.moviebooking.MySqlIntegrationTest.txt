@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.example.moviebooking.MySqlIntegrationTest
 -------------------------------------------------------------------------------
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 4, Time elapsed: 0.001 s -- in com.example.moviebooking.MySqlIntegrationTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 5, Time elapsed: 0.001 s -- in com.example.moviebooking.MySqlIntegrationTest

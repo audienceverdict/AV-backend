@@ -7,6 +7,7 @@ import com.example.moviebooking.auth.security.JwtService;
 import com.fasterxml.jackson.databind.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
@@ -22,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles({ "test", "dev" })
+@ActiveProfiles({ "dev", "test" })
 class AuthIntegrationTest {
     @Autowired
     MockMvc mvc;
@@ -34,6 +35,8 @@ class AuthIntegrationTest {
     OtpVerificationRepository otps;
     @Autowired
     JwtService jwt;
+    @Value("${app.admin.email:}")
+    String configuredAdminEmail;
     @MockitoBean
     EmailProvider email;
     final Map<String, String> codes = new ConcurrentHashMap<>();
@@ -150,6 +153,33 @@ class AuthIntegrationTest {
         mvc.perform(patch("/api/v1/admin/users/" + id + "/status").header("Authorization", token(auth))
                 .contentType("application/json").content("{\"enabled\":false}")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/auth/me").header("Authorization", token(other))).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void configuredAdminEmailIsPromotedAfterOtpAndOtherAdminEmailIsRejected() throws Exception {
+        String configuredAdmin = configuredAdminEmail;
+        User configuredUser = new User();
+        configuredUser.name = "Configured Admin";
+        configuredUser.mobile = "+919876543210";
+        configuredUser.email = configuredAdmin;
+        configuredUser.role = Role.USER;
+        users.saveAndFlush(configuredUser);
+
+        request(configuredAdmin, 200);
+        var result = verify(configuredAdmin.toUpperCase(Locale.ROOT), codes.get(configuredAdmin), 200);
+
+        assertFalse(result.path("registrationRequired").asBoolean());
+        assertEquals("ADMIN", jwt.validate(result.path("accessToken").asText()).getClaimAsString("role"));
+        assertEquals(Role.ADMIN, users.findByEmailIgnoreCase(configuredAdmin).orElseThrow().role);
+
+        User otherAdmin = new User();
+        otherAdmin.name = "Other Admin";
+        otherAdmin.mobile = "+919876543211";
+        otherAdmin.email = "other-admin@example.com";
+        otherAdmin.role = Role.ADMIN;
+        users.saveAndFlush(otherAdmin);
+        request(otherAdmin.email, 403);
+        verify(otherAdmin.email, "123456", 403);
     }
 
     @Test
