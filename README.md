@@ -71,3 +71,22 @@ Use edge-level IP/global request limits for public email OTP endpoints.
 
 `mvn test` runs endpoint, persistence, concurrency, OTP, profile, JWT, CORS and authorization checks with H2. `mvn package` produces the executable jar in `target`.
 "# AV-backend" 
+
+## Sample database and complete Postman collection
+
+See [postman/README.md](postman/README.md) for the populated 100-record-per-entity dataset, import instructions, OTP/token steps, and the complete API workflow. [postman/ENDPOINTS.md](postman/ENDPOINTS.md) lists every request URL.
+
+
+### Application logging
+
+Logging defaults to INFO. Set `APP_LOG_LEVEL=DEBUG` for service diagnostics or
+`APP_LOG_LEVEL=TRACE` for AOP method start/exit logs with outcome and elapsed time.
+The aspect covers controllers, services, security, repositories, and future
+scheduler/mapper beans. Spring AOP intercepts calls through Spring proxies;
+private methods, constructors, and calls within the same bean are not intercepted.
+
+INFO records business state changes; WARN records rejected requests and recoverable
+failures; ERROR records server failures. State-change logs describe work performed
+inside the method and are not a guarantee that an enclosing transaction committed.
+Arguments, return values, JWTs, OTPs, and email bodies are not logged. Unexpected
+errors include the exception type and stack frames without the exception message.

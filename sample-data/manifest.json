@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "auth_locks": 100,
+    "users": 100,
+    "otp_verifications": 100,
+    "movies": 100,
+    "movie_posters": 100,
+    "movie_genres": 100,
+    "movie_cast": 100,
+    "theatres": 100,
+    "venue_media": 100,
+    "screens": 100,
+    "seats": 400,
+    "layout_versions": 100,
+    "layout_seats": 400,
+    "shows": 100,
+    "bookings": 100,
+    "booking_seats": 400,
+    "payments": 100,
+    "seat_holds": 100,
+    "waiting_list_entries": 100,
+    "reviews": 100,
+    "notifications": 100
+  },
+  "adminEmail": "audienceverdict@gmail.com",
+  "userEmail": "user002@example.test",
+  "userId": "55a7592f-a194-56b8-b4b9-0c7c307add2e",
+  "targetUserId": "0ae6ed01-0ff7-5395-8a79-b36b8a27f64b",
+  "waitingShowId": "bddff7fe-b3d0-5352-85cd-7b2dab031387",
+  "waitingBookingId": "f20b00bc-337a-50a6-9636-bcb21c420c37",
+  "seedBookingId": "bc7a9e79-08a2-5361-b57c-16bcc40dbc57"
+}

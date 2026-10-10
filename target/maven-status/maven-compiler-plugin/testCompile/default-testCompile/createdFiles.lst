@@ -1,0 +1,4 @@
+com/slokam/av/config/SecurityConfigTest.class
+com/slokam/av/exception/handler/GlobalExceptionHandlerTest.class
+com/slokam/av/util/BrandedEmailTemplateTest.class
+com/slokam/av/aspect/MethodLoggingAspectTest.class

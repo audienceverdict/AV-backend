@@ -1,0 +1,23 @@
+{
+  "auth_locks": 100,
+  "users": 102,
+  "otp_verifications": 105,
+  "movies": 100,
+  "movie_posters": 100,
+  "movie_genres": 100,
+  "movie_cast": 100,
+  "theatres": 100,
+  "venue_media": 100,
+  "screens": 100,
+  "seats": 400,
+  "layout_versions": 100,
+  "layout_seats": 400,
+  "shows": 100,
+  "bookings": 102,
+  "booking_seats": 400,
+  "payments": 102,
+  "seat_holds": 102,
+  "waiting_list_entries": 102,
+  "reviews": 100,
+  "notifications": 144
+}

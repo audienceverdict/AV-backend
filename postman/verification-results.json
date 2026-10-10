@@ -1,0 +1,269 @@
+{
+  "mode": "Local dev email logging; Python executed collection HTTP requests and mirrored variable capture, not a Postman runner.",
+  "results": [
+    {
+      "request": "Request new user email OTP",
+      "status": 200
+    },
+    {
+      "request": "Verify new user OTP",
+      "status": 200
+    },
+    {
+      "request": "Register verified new profile and save bearer token",
+      "status": 200
+    },
+    {
+      "request": "Get current profile",
+      "status": 200
+    },
+    {
+      "request": "Update current profile",
+      "status": 200
+    },
+    {
+      "request": "Request configured admin OTP",
+      "status": 200
+    },
+    {
+      "request": "Verify admin OTP and save admin bearer token",
+      "status": 200
+    },
+    {
+      "request": "List users",
+      "status": 200
+    },
+    {
+      "request": "Get sample user",
+      "status": 200
+    },
+    {
+      "request": "Disable sample user",
+      "status": 200
+    },
+    {
+      "request": "Enable sample user",
+      "status": 200
+    },
+    {
+      "request": "Set sample user role ADMIN",
+      "status": 200
+    },
+    {
+      "request": "Set sample user role USER",
+      "status": 200
+    },
+    {
+      "request": "Create movie",
+      "status": 200
+    },
+    {
+      "request": "List active movies with pagination",
+      "status": 200
+    },
+    {
+      "request": "Get movie",
+      "status": 200
+    },
+    {
+      "request": "Update movie",
+      "status": 200
+    },
+    {
+      "request": "Create theatre",
+      "status": 200
+    },
+    {
+      "request": "List theatres",
+      "status": 200
+    },
+    {
+      "request": "Get theatre",
+      "status": 200
+    },
+    {
+      "request": "Update theatre",
+      "status": 200
+    },
+    {
+      "request": "Create screen with seats",
+      "status": 200
+    },
+    {
+      "request": "Update screen before it is locked",
+      "status": 200
+    },
+    {
+      "request": "List screens and capture legacy seat IDs",
+      "status": 200
+    },
+    {
+      "request": "List layout versions",
+      "status": 200
+    },
+    {
+      "request": "Create draft layout",
+      "status": 200
+    },
+    {
+      "request": "Replace draft layout seats",
+      "status": 200
+    },
+    {
+      "request": "Get layout details",
+      "status": 200
+    },
+    {
+      "request": "Publish layout",
+      "status": 200
+    },
+    {
+      "request": "Create show",
+      "status": 200
+    },
+    {
+      "request": "List shows with filters",
+      "status": 200
+    },
+    {
+      "request": "Get show",
+      "status": 200
+    },
+    {
+      "request": "Update show",
+      "status": 200
+    },
+    {
+      "request": "Get availability",
+      "status": 200
+    },
+    {
+      "request": "Hold seat",
+      "status": 200
+    },
+    {
+      "request": "Get active holds",
+      "status": 200
+    },
+    {
+      "request": "Create paid booking",
+      "status": 200
+    },
+    {
+      "request": "Get my bookings",
+      "status": 200
+    },
+    {
+      "request": "Get my booking",
+      "status": 200
+    },
+    {
+      "request": "Get booking payment",
+      "status": 200
+    },
+    {
+      "request": "Verify payment",
+      "status": 200
+    },
+    {
+      "request": "Admin list bookings",
+      "status": 200
+    },
+    {
+      "request": "Admin confirm booking",
+      "status": 200
+    },
+    {
+      "request": "Mark attended",
+      "status": 200
+    },
+    {
+      "request": "Create review",
+      "status": 200
+    },
+    {
+      "request": "Update my review",
+      "status": 200
+    },
+    {
+      "request": "Moderate and highlight review",
+      "status": 200
+    },
+    {
+      "request": "List approved reviews",
+      "status": 200
+    },
+    {
+      "request": "Send show-booker campaign",
+      "status": 200
+    },
+    {
+      "request": "Send show reminder",
+      "status": 200
+    },
+    {
+      "request": "Get my notifications",
+      "status": 200
+    },
+    {
+      "request": "Join sold-out seeded show waiting list",
+      "status": 200
+    },
+    {
+      "request": "List my waiting entries",
+      "status": 200
+    },
+    {
+      "request": "Admin list waiting entries",
+      "status": 200
+    },
+    {
+      "request": "Release seeded booking seats to offer earlier entry",
+      "status": 200
+    },
+    {
+      "request": "Create second booking for offer trigger",
+      "status": 200
+    },
+    {
+      "request": "Cancel trigger booking to offer my entry",
+      "status": 200
+    },
+    {
+      "request": "Claim waiting list offer",
+      "status": 200
+    },
+    {
+      "request": "Cancel my waiting entry",
+      "status": 200
+    },
+    {
+      "request": "Cancel my booking",
+      "status": 200
+    },
+    {
+      "request": "Create second booking for admin cancellation",
+      "status": 200
+    },
+    {
+      "request": "Admin cancel booking with reason",
+      "status": 200
+    },
+    {
+      "request": "Cancel show",
+      "status": 200
+    },
+    {
+      "request": "Delete screen",
+      "status": 200
+    },
+    {
+      "request": "Delete theatre",
+      "status": 200
+    },
+    {
+      "request": "Delete movie",
+      "status": 200
+    }
+  ]
+}
