@@ -1,6 +1,6 @@
 # Authentication backend
 
-Java 21, Maven, Spring Boot 3.4.13, MySQL 8. Flyway owns schema changes; Hibernate uses `ddl-auto=validate`.
+Java 21, Maven, Spring Boot 3.4.13, MySQL 8. Flyway versions the movie catalog schema and legacy backfill. Existing profiles retain `ddl-auto=update` for unrelated modules; see [catalog migration and API guide](docs/movie-catalog.md) before deployment.
 
 ## Local configuration (PowerShell)
 
@@ -90,3 +90,5 @@ failures; ERROR records server failures. State-change logs describe work perform
 inside the method and are not a guarantee that an enclosing transaction committed.
 Arguments, return values, JWTs, OTPs, and email bodies are not logged. Unexpected
 errors include the exception type and stack frames without the exception message.
+
+Movie catalog enhancements, URL-only media examples, people/credits APIs, and migration instructions: [docs/movie-catalog.md](docs/movie-catalog.md).

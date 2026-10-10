@@ -14,7 +14,7 @@ The local `movie_booking` database has been populated with 100 rows in every ent
 8. Run folder **10** using the newly registered user from folder 01. Join the sold-out seeded show, release its seeded booking, create/cancel a trigger booking, then claim the offer within five minutes. The seeded earlier entry receives the first offer; cancelling the trigger booking offers seats to your entry. Claiming an offer does not create a booking; use `POST /bookings` separately to reserve seats. This scenario changes the last seeded booking and waiting-list entries and is intended to run once per fixture import.
 9. Run folder **11** last to test user/admin cancellation and delete the Postman-created master data. These requests change/delete data created by the collection.
 
-[ENDPOINTS.md](ENDPOINTS.md) lists all 68 step-by-step request URLs. All 58 distinct controller method/path combinations are represented; some endpoints appear several times to test different actions. Tests check expected HTTP status. OTP steps require manual entry, so do not run the entire collection unattended. A token expires according to the backend JWT configuration; repeat login when necessary. OTPs expire in five minutes by default, with a 30-second resend cooldown.
+[ENDPOINTS.md](ENDPOINTS.md) lists all 99 step-by-step request URLs, including the URL-only movie media, people, and credit workflows in folder **05b**; some endpoints appear several times to test different actions. Tests check expected HTTP status. OTP steps require manual entry, so do not run the entire collection unattended. A token expires according to the backend JWT configuration; repeat login when necessary. OTPs expire in five minutes by default, with a 30-second resend cooldown.
 
 ## Local email logging
 
@@ -53,3 +53,5 @@ Start the application once before import to create its schema. Make `--admin-ema
 ## Verification performed
 
 `mvn package` passed, including the plain-text OTP regression test. A local dev server on port 18081 executed all 66 main-workflow HTTP requests from the collection with email logging; all returned the expected 200 status. The optional existing-user folder was skipped. The verification harness mirrored environment capture in Python; this was not a Postman/Newman runner execution. Results are in [verification-results.json](verification-results.json). The temporary server was stopped and the seeded sold-out booking/waiting scenario restored afterward.
+
+For enhanced movie profiles, media types, actor/technician fields, and migration details, see [the movie catalog guide](../docs/movie-catalog.md).

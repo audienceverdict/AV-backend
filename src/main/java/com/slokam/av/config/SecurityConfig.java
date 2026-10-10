@@ -53,6 +53,10 @@ public class SecurityConfig {
                                         .requestMatchers(
                                                 "/api/v1/bookings/**", "/api/v1/waiting-list/**")
                                         .authenticated()
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/people/**").hasRole("ADMIN")
+                                        .requestMatchers(HttpMethod.PUT, "/api/v1/people/**").hasRole("ADMIN")
+                                        .requestMatchers(HttpMethod.DELETE, "/api/v1/people/**").hasRole("ADMIN")
+                                        .requestMatchers(HttpMethod.PATCH, "/api/v1/movies/**", "/api/v1/people/**").hasRole("ADMIN")
                                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
                                         .permitAll()
                                         .requestMatchers(

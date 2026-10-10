@@ -218,6 +218,62 @@ add(
     "/movies/{{movieId}}",
     dict(movie, title="Postman Movie Updated"),
 )
+a = folder("05b Movie media, people, and credits (URL-only)")
+add(a, "Search enhanced movie catalog", "GET", "/movies?title=Postman&genre=Drama&language=Telugu&page=0&size=20", auth=None)
+add(a, "Create reusable actor and technician", "POST", "/people", {
+    "fullName": "Postman Professional", "biography": "Actor and film editor",
+    "profileImageUrl": "https://example.test/person.jpg", "skills": ["Acting", "Editing"]
+}, capture="catalogPersonId", codes=(201,))
+add(a, "Search people", "GET", "/people?name=Postman&page=0&size=20", auth=None)
+add(a, "Get person profile", "GET", "/people/{{catalogPersonId}}", auth=None)
+add(a, "Update technician profile", "PUT", "/people/{{catalogPersonId}}", {
+    "fullName": "Postman Professional", "biography": "Actor, editor, and cinematographer",
+    "profileImageUrl": "https://example.test/person.jpg", "skills": ["Acting", "Editing", "Cinematography"]
+})
+add(a, "Add social profile", "POST", "/people/{{catalogPersonId}}/social-links", {
+    "platform": "INSTAGRAM", "profileUrl": "https://www.instagram.com/example", "isVerifiedOfficial": False
+}, capture="catalogSocialId", codes=(201,))
+add(a, "List social profiles", "GET", "/people/{{catalogPersonId}}/social-links", auth=None)
+add(a, "Update social profile", "PUT", "/people/{{catalogPersonId}}/social-links/{{catalogSocialId}}", {
+    "platform": "INSTAGRAM", "profileUrl": "https://www.instagram.com/example", "username": "example", "isVerifiedOfficial": False
+})
+actor_credit = {
+    "personId": "{{catalogPersonId}}", "creditType": "CAST", "roleTitle": "Actor",
+    "characterName": "Lead Character", "characterCategory": "HERO",
+    "characterImageUrl": "https://example.test/character.jpg", "isMainCast": True, "billingOrder": 0
+}
+add(a, "Add actor and character", "POST", "/movies/{{movieId}}/credits", actor_credit, capture="catalogCreditId", codes=(201,))
+add(a, "Update actor character", "PUT", "/movies/{{movieId}}/credits/{{catalogCreditId}}", dict(actor_credit, characterDescription="Movie-specific character profile"))
+for role in ("Film editor", "VFX supervisor"):
+    add(a, "Add crew role " + role, "POST", "/movies/{{movieId}}/credits", {
+        "personId": "{{catalogPersonId}}", "creditType": "CREW", "department": "Post-production", "roleTitle": role
+    }, codes=(201,))
+for suffix in ("credits", "cast", "crew"):
+    add(a, "Get movie " + suffix, "GET", "/movies/{{movieId}}/" + suffix, auth=None)
+add(a, "Get person filmography", "GET", "/people/{{catalogPersonId}}/filmography?page=0&size=20", auth=None)
+add(a, "Get distinct credited movies", "GET", "/people/{{catalogPersonId}}/movies?page=0&size=20", auth=None)
+add(a, "Add primary theatrical poster", "POST", "/movies/{{movieId}}/media", {
+    "mediaType": "THEATRICAL_POSTER", "title": "Release poster", "mediaUrl": "https://example.test/release.jpg", "isPrimary": True
+}, capture="catalogPosterId", codes=(201,))
+for media_type in ("TRAILER", "TEASER", "MAKING_OF", "INTERVIEW", "EVENT_VIDEO"):
+    add(a, "Add labeled video " + media_type, "POST", "/movies/{{movieId}}/media", {
+        "mediaType": media_type, "title": media_type.replace("_", " ").title(),
+        "mediaUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "language": "Telugu", "isOfficial": True
+    }, codes=(201,))
+add(a, "Add labeled movie still", "POST", "/movies/{{movieId}}/media", {
+    "mediaType": "STILL", "title": "Movie still", "mediaUrl": "https://example.test/still.jpg"
+}, capture="catalogMediaId", codes=(201,))
+add(a, "Update media label", "PUT", "/movies/{{movieId}}/media/{{catalogMediaId}}", {
+    "mediaType": "STILL", "title": "Updated movie still", "mediaUrl": "https://example.test/still.jpg"
+})
+add(a, "Select primary poster", "PUT", "/movies/{{movieId}}/media/{{catalogPosterId}}/primary")
+add(a, "List movie media and capture order", "GET", "/movies/{{movieId}}/media", auth=None,
+    script='if(pm.response.code===200) pm.environment.set("catalogMediaIds", JSON.stringify(pm.response.json().map(x=>x.id).reverse()));')
+add(a, "Reorder movie media", "PUT", "/movies/{{movieId}}/media/order", {"mediaIds": []})
+a[-1]["request"]["body"]["raw"] = '{"mediaIds": {{catalogMediaIds}}}'
+add(a, "Delete sample movie still", "DELETE", "/movies/{{movieId}}/media/{{catalogMediaId}}", codes=(204,))
+add(a, "Delete sample cast credit", "DELETE", "/movies/{{movieId}}/credits/{{catalogCreditId}}", codes=(204,))
+add(a, "Delete sample social link", "DELETE", "/people/{{catalogPersonId}}/social-links/{{catalogSocialId}}", codes=(204,))
 a = folder("06 Theatre, screen, layout master data")
 theatre = {
     "name": "Postman Theatre",
@@ -569,6 +625,7 @@ variables["waitingSeatId"] = str(
         "av-sample/seat/" + str(manifest["counts"]["shows"] * 10 + 1),
     )
 )
+variables.update({key: "" for key in ("catalogPersonId", "catalogSocialId", "catalogCreditId", "catalogPosterId", "catalogMediaId", "catalogMediaIds")})
 collection = {
     "info": {
         "name": "AV Backend — complete ordered API workflow",

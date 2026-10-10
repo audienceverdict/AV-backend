@@ -46,6 +46,12 @@ public class GlobalExceptionHandler {
                                 fields));
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiErrors> invalidParameter(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e, HttpServletRequest r) {
+        return ResponseEntity.badRequest().body(new ApiErrors(Instant.now(), 400, "VALIDATION_ERROR",
+                "Invalid request parameter", r.getRequestURI(), Map.of(e.getName(), "Invalid value")));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiErrors> malformed(HttpServletRequest r) {
         log.warn("Request rejected: malformed body");
@@ -74,7 +80,8 @@ public class GlobalExceptionHandler {
                         ApiErrors.of(
                                 409,
                                 "DUPLICATE_VALUE",
-                                "Mobile or email is already in use",
+                                r.getRequestURI().startsWith("/api/v1/movies") || r.getRequestURI().startsWith("/api/v1/people")
+                                        ? "Catalog value conflicts with an existing record" : "Mobile or email is already in use",
                                 r.getRequestURI()));
     }
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
