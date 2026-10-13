@@ -153,6 +153,28 @@ class CatalogIntegrationTest {
         assertThrows(ApiException.class, () -> media.delete(other, poster.id));
         assertThrows(Exception.class, () -> jdbc.update("UPDATE movie_media SET is_primary=TRUE WHERE id=?", poster.id));
     }
+    @Test void malformedMoviePayloadReportsSpecificFieldsAndExpectedValues() throws Exception {
+        String[][] cases = {
+            {"{\"title\":\"Antahkarana\",\"countryOfOrigin\":[\"India\"]}",
+                    "countryOfOrigin", "Expected a string"},
+            {"{\"title\":\"Antahkarana\",\"productionCompanies\":[{\"name\":\"Antahkarana Pictures\"}]}",
+                    "productionCompanies[0]", "Expected a string"},
+            {"{\"title\":\"Antahkarana\",\"productionStatus\":\"In post-production\"}",
+                    "productionStatus", "POST_PRODUCTION"},
+            {"{\"title\":\"Antahkarana\",\"releaseStatus\":\"Release date to be announced\"}",
+                    "releaseStatus", "UPCOMING"}
+        };
+        for (String[] invalid : cases) {
+            mvc.perform(post("/api/v1/movies").with(user("admin").roles("ADMIN"))
+                            .contentType("application/json").content(invalid[0]))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("MALFORMED_REQUEST"))
+                    .andExpect(jsonPath("$.path").value("/api/v1/movies"))
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(invalid[1])))
+                    .andExpect(jsonPath("$.fieldErrors['" + invalid[1] + "']")
+                            .value(org.hamcrest.Matchers.containsString(invalid[2])));
+        }
+    }
     @Test void concurrentPrimaryPosterChangesNeverCreateTwoPrimaries() throws Exception {
         String id = movies.create(movieRequest("Concurrent poster")).id;
         String first = media.add(id, mediaRequest(MovieMediaType.POSTER, "https://example.com/first.jpg")).id;

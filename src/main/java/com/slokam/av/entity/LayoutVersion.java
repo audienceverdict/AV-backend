@@ -27,6 +27,10 @@ public class LayoutVersion {
     @Column(nullable = false, length = 20)
     public LayoutVersionStatus status = LayoutVersionStatus.DRAFT;
 
+    // Only ACTIVE versions carry this value. NULL permits multiple drafts/archives.
+    @Column(name = "active_screen_id", length = 36, unique = true)
+    public String activeScreenId;
+
     public Instant publishedAt;
 
     @Lob
@@ -35,4 +39,10 @@ public class LayoutVersion {
 
     @Column(nullable = false)
     public Instant createdAt = Instant.now();
+    @PrePersist
+    @PreUpdate
+    void syncActiveScreen() {
+        activeScreenId = status == LayoutVersionStatus.ACTIVE ? screenId : null;
+    }
+
 }

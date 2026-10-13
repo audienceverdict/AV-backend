@@ -3,8 +3,6 @@ package com.slokam.av.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.slokam.av.dto.WaitingListRequest;
-import com.slokam.av.entity.LayoutSeat;
-import com.slokam.av.entity.Seat;
 import com.slokam.av.entity.ShowStatus;
 import com.slokam.av.entity.WaitingListEntry;
 import com.slokam.av.entity.WaitingListStatus;
@@ -96,24 +94,7 @@ public class WaitingListService {
     }
 
     private long availableSeatCount(String showId) {
-        var availability = showService.availability(showId);
-        var layout = (Map<?, ?>) availability.get("layout");
-        Object value = layout.get("seats");
-        var seats = value instanceof List<?> list ? list : List.of();
-        var unavailable = new HashSet<String>();
-        Object blocked = availability.get("bookedSeatIds");
-        if (blocked instanceof Collection<?> ids)
-            ids.forEach(id -> unavailable.add(String.valueOf(id)));
-        return seats.stream()
-                .filter(
-                        seat -> {
-                            if (seat instanceof LayoutSeat s)
-                                return !s.disabled && !unavailable.contains(s.id);
-                            if (seat instanceof Seat s)
-                                return !s.disabled && !unavailable.contains(s.id);
-                            return false;
-                        })
-                .count();
+        return showService.availableSeatCount(showId);
     }
 
     @Transactional

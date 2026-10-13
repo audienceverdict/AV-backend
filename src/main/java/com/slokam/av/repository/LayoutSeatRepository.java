@@ -12,8 +12,10 @@ public interface LayoutSeatRepository
     List<LayoutSeat> findByLayoutVersionIdOrderByRowNumberAscColumnNumberAsc(
             String layoutVersionId);
 
+    @org.springframework.data.jpa.repository.Query("select s from LayoutSeat s where s.layoutVersionId=:layoutVersionId and coalesce(s.seatId,s.id) in :ids")
     List<LayoutSeat> findByLayoutVersionIdAndIdIn(
-            String layoutVersionId, java.util.Collection<String> ids);
+            @org.springframework.data.repository.query.Param("layoutVersionId") String layoutVersionId,
+            @org.springframework.data.repository.query.Param("ids") java.util.Collection<String> ids);
 
     void deleteByLayoutVersionId(String layoutVersionId);
 

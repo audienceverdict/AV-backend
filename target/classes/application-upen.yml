@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/movie_booking?createDatabaseIfNotExist=true
+    url: jdbc:mysql://localhost:3306/movie_booking_5?createDatabaseIfNotExist=true
     username: root
     password: rootroot
   jpa:
@@ -8,7 +8,10 @@ spring:
     hibernate:
       ddl-auto: update
   flyway:
+    # The schema was cloned in full; migration history is intentionally empty.
     enabled: false
+    baseline-on-migrate: true
+    baseline-version: 1
   jackson:
     deserialization:
       fail-on-unknown-properties: true

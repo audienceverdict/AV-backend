@@ -1,5 +1,12 @@
 package com.slokam.av.exception.handler;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.slokam.av.exception.ApiErrors;
 import com.slokam.av.exception.custom.ApiException;
 
@@ -48,20 +55,110 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
     ResponseEntity<ApiErrors> invalidParameter(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e, HttpServletRequest r) {
-        return ResponseEntity.badRequest().body(new ApiErrors(Instant.now(), 400, "VALIDATION_ERROR",
-                "Invalid request parameter", r.getRequestURI(), Map.of(e.getName(), "Invalid value")));
+        String detail = "Invalid value. " + expectedType(e.getRequiredType());
+        return badRequest(r, "VALIDATION_ERROR", "Invalid request parameter '" + e.getName() + "': " + detail,
+                e.getName(), detail);
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    ResponseEntity<ApiErrors> missingParameter(org.springframework.web.bind.MissingServletRequestParameterException e, HttpServletRequest r) {
+        return badRequest(r, "VALIDATION_ERROR", "Required request parameter '" + e.getParameterName() + "' is missing",
+                e.getParameterName(), "Required parameter is missing");
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    ResponseEntity<ApiErrors> malformed(HttpServletRequest r) {
+    ResponseEntity<ApiErrors> malformed(HttpMessageNotReadableException e, HttpServletRequest r) {
         log.warn("Request rejected: malformed body");
-        return ResponseEntity.badRequest()
-                .body(
-                        ApiErrors.of(
-                                400,
-                                "MALFORMED_REQUEST",
-                                "Invalid request body",
-                                r.getRequestURI()));
+        JsonMappingException mappingFailure = null;
+        for (Throwable cause = e.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof UnrecognizedPropertyException unknown) {
+                return badRequest(r, "MALFORMED_REQUEST",
+                        "Unsupported field '" + unknown.getPropertyName() + "' in request body",
+                        fieldPath(unknown), "Unsupported field");
+            }
+            if (cause instanceof MismatchedInputException mismatch) {
+                String field = fieldPath(mismatch);
+                String detail = (mismatch instanceof InvalidFormatException ? "Invalid value. " : "Invalid JSON type. ")
+                        + expectedType(mismatch.getTargetType());
+                if (mismatch.getProcessor() instanceof JsonParser parser) {
+                    String actual = jsonType(parser.currentToken());
+                    if (actual != null) detail += " Received " + actual + ".";
+                }
+                return badRequest(r, "MALFORMED_REQUEST", "Invalid field '" + field + "': " + detail, field, detail);
+            }
+            if (cause instanceof JsonParseException syntax) {
+                String detail = "Malformed JSON syntax";
+                if (syntax.getLocation() != null) {
+                    detail += " at line " + syntax.getLocation().getLineNr()
+                            + ", column " + syntax.getLocation().getColumnNr();
+                }
+                return badRequest(r, "MALFORMED_REQUEST", detail, "body", detail);
+            }
+            if (cause instanceof JsonMappingException mapping) {
+                mappingFailure = mapping;
+            }
+        }
+        if (mappingFailure != null) {
+            String field = fieldPath(mappingFailure);
+            // Never expose Jackson's raw message, Java class names or the request content.
+            String detail = "Invalid value or conflicting aliases for this field";
+            return badRequest(r, "MALFORMED_REQUEST", "Invalid field '" + field + "': " + detail, field, detail);
+        }
+        return badRequest(r, "MALFORMED_REQUEST", "Request body is required and must contain valid JSON",
+                "body", "Request body is required and must contain valid JSON");
+    }
+
+    private static ResponseEntity<ApiErrors> badRequest(HttpServletRequest request, String code,
+                                                       String message, String field, String detail) {
+        return ResponseEntity.badRequest().body(new ApiErrors(Instant.now(), 400, code, message,
+                request.getRequestURI(), Map.of(field, detail)));
+    }
+
+    private static String fieldPath(JsonMappingException exception) {
+        StringBuilder field = new StringBuilder();
+        for (var reference : exception.getPath()) {
+            if (reference.getFieldName() != null) {
+                if (!field.isEmpty()) field.append('.');
+                field.append(reference.getFieldName());
+            } else if (reference.getIndex() >= 0) {
+                field.append('[').append(reference.getIndex()).append(']');
+            }
+        }
+        if (field.isEmpty() && exception instanceof UnrecognizedPropertyException unknown) {
+            field.append(unknown.getPropertyName());
+        }
+        return field.isEmpty() ? "body" : field.toString();
+    }
+
+    private static String expectedType(Class<?> type) {
+        if (type == null) return "Use the documented field format.";
+        if (type.isEnum()) return "Expected one of: " + String.join(", ",
+                Arrays.stream(type.getEnumConstants()).map(value -> ((Enum<?>) value).name()).toList()) + ".";
+        if (type == String.class || type == Character.class || type == char.class) return "Expected a string.";
+        if (type == java.time.LocalDate.class) return "Expected a valid date in YYYY-MM-DD format.";
+        if (type == java.time.LocalDateTime.class) return "Expected an ISO-8601 date-time (e.g. 2026-10-31T18:30:00).";
+        if (type == Instant.class || type == java.time.OffsetDateTime.class || type == java.time.ZonedDateTime.class)
+            return "Expected an ISO-8601 timestamp with a timezone (e.g. 2026-10-31T18:30:00Z).";
+        if (type == boolean.class || type == Boolean.class) return "Expected a boolean (true or false).";
+        if (type == int.class || type == long.class || type == short.class || type == byte.class
+                || type == Integer.class || type == Long.class || type == Short.class || type == Byte.class
+                || type == java.math.BigInteger.class) return "Expected a whole number within the supported range.";
+        if (Number.class.isAssignableFrom(type) || type == double.class || type == float.class) return "Expected a number.";
+        if (type.isArray() || Collection.class.isAssignableFrom(type)) return "Expected an array.";
+        return "Expected a JSON object with the documented fields.";
+    }
+
+    private static String jsonType(JsonToken token) {
+        if (token == null) return null;
+        return switch (token) {
+            case START_ARRAY, END_ARRAY -> "an array";
+            case START_OBJECT, END_OBJECT, FIELD_NAME -> "an object";
+            case VALUE_STRING -> "a string";
+            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> "a number";
+            case VALUE_TRUE, VALUE_FALSE -> "a boolean";
+            case VALUE_NULL -> "null";
+            default -> null;
+        };
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

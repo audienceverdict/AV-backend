@@ -33,6 +33,9 @@ public class Screen {
     @Column(nullable = false)
     public int layoutVersion = 1;
 
+    @Column(length = 36)
+    public String activeLayoutVersionId;
+
     @Column(nullable = false)
     public boolean layoutLocked = false;
 

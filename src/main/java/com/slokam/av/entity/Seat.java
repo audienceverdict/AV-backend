@@ -18,7 +18,7 @@ public class Seat {
     @JoinColumn(name = "screen_id")
     public Screen screen;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 80)
     public String label;
 
     @Column(nullable = false, length = 40)

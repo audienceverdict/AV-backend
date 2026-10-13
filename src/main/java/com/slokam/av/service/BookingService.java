@@ -7,7 +7,6 @@ import com.slokam.av.dto.SeatHoldRequest;
 import com.slokam.av.entity.Booking;
 import com.slokam.av.entity.BookingStatus;
 import com.slokam.av.entity.ConfirmationStatus;
-import com.slokam.av.entity.LayoutSeat;
 import com.slokam.av.entity.Payment;
 import com.slokam.av.entity.PaymentStatus;
 import com.slokam.av.entity.SeatHold;
@@ -18,13 +17,10 @@ import com.slokam.av.entity.User;
 import com.slokam.av.entity.WaitingListStatus;
 import com.slokam.av.exception.custom.ApiException;
 import com.slokam.av.repository.BookingRepository;
-import com.slokam.av.repository.LayoutSeatRepository;
-import com.slokam.av.repository.LayoutVersionRepository;
 import com.slokam.av.repository.MovieRepository;
 import com.slokam.av.repository.PaymentRepository;
 import com.slokam.av.repository.ScreenRepository;
 import com.slokam.av.repository.SeatHoldRepository;
-import com.slokam.av.repository.SeatRepository;
 import com.slokam.av.repository.ShowRepository;
 import com.slokam.av.repository.TheatreRepository;
 import com.slokam.av.repository.UserRepository;
@@ -45,17 +41,15 @@ public class BookingService {
     private static final Logger log = LoggerFactory.getLogger(BookingService.class);
     private final BookingRepository bookings;
     private final ShowRepository shows;
-    private final SeatRepository seats;
     private final MovieRepository movies;
     private final TheatreRepository theatres;
     private final ScreenRepository screens;
     private final UserRepository users;
     private final PaymentRepository payments;
     private final NotificationService notifications;
-    private final LayoutSeatRepository layoutSeats;
-    private final LayoutVersionRepository layoutVersions;
     private final SeatHoldRepository holds;
     private final WaitingListRepository waiting;
+    private final ShowSeatService showSeats;
 
     @Value("${booking.seat-hold-minutes:5}")
     private long holdMinutes;
@@ -66,30 +60,25 @@ public class BookingService {
     public BookingService(
             BookingRepository bookings,
             ShowRepository shows,
-            SeatRepository seats,
             MovieRepository movies,
             TheatreRepository theatres,
             ScreenRepository screens,
             UserRepository users,
             PaymentRepository payments,
             NotificationService notifications,
-            LayoutSeatRepository layoutSeats,
-            LayoutVersionRepository layoutVersions,
             SeatHoldRepository holds,
-            WaitingListRepository waiting) {
+            WaitingListRepository waiting, ShowSeatService showSeats) {
         this.bookings = bookings;
         this.shows = shows;
-        this.seats = seats;
         this.movies = movies;
         this.theatres = theatres;
         this.screens = screens;
         this.users = users;
         this.payments = payments;
         this.notifications = notifications;
-        this.layoutSeats = layoutSeats;
-        this.layoutVersions = layoutVersions;
         this.holds = holds;
         this.waiting = waiting;
+        this.showSeats = showSeats;
     }
 
     @Transactional
@@ -99,23 +88,19 @@ public class BookingService {
                 .orElseThrow(
                         () -> new ApiException(401, "UNAUTHORIZED", "Authentication required"));
         var show =
-                shows.findById(r.showId)
+                shows.lockById(r.showId)
                         .orElseThrow(
                                 () -> new ApiException(404, "SHOW_NOT_FOUND", "Show not found"));
         if (show.status != ShowStatus.OPEN)
             throw new ApiException(400, "SHOW_CLOSED", "Show is not open for booking");
         expireHolds();
+        if (r.seatIds == null || r.seatIds.isEmpty()) throw new ApiException(400, "INVALID_SEAT", "Select at least one seat");
         var requested = new LinkedHashSet<>(r.seatIds);
         holds.deleteOld(show.id, requested, SeatHoldStatus.EXPIRED);
         if (requested.size() != r.seatIds.size())
             throw new ApiException(400, "DUPLICATE_SEAT", "Seat selected more than once");
-        var validSeatIds =
-                seats.findByScreenId(show.screenId).stream()
-                        .filter(s -> !s.disabled)
-                        .map(s -> s.id)
-                        .collect(java.util.stream.Collectors.toSet());
-        if (requested.stream().anyMatch(s -> !validSeatIds.contains(s)))
-            throw new ApiException(400, "INVALID_SEAT", "One or more selected seats do not exist");
+        showSeats.validateSelection(show, requested);
+        showSeats.rejectOtherHolds(show, requested, p.getName());
         var now = Instant.now();
         var active =
                 holds.findByShowIdAndStatusAndExpiresAtAfter(show.id, SeatHoldStatus.ACTIVE, now);
@@ -204,7 +189,7 @@ public class BookingService {
                                         new ApiException(
                                                 401, "UNAUTHORIZED", "Authentication required"));
         var show =
-                shows.findById(r.showId)
+                shows.lockById(r.showId)
                         .orElseThrow(
                                 () -> new ApiException(404, "SHOW_NOT_FOUND", "Show not found"));
         if (show.status != ShowStatus.OPEN)
@@ -214,6 +199,7 @@ public class BookingService {
             throw new ApiException(400, "BOOKING_NOT_OPEN", "Booking has not opened");
         if (show.bookingCloses != null && now.isAfter(show.bookingCloses))
             throw new ApiException(400, "BOOKING_CLOSED", "Booking is closed");
+        if (r.seatIds == null || r.seatIds.isEmpty()) throw new ApiException(400, "INVALID_SEAT", "Select at least one seat");
         var requested = new ArrayList<>(new LinkedHashSet<>(r.seatIds));
         if (requested.size() != r.seatIds.size())
             throw new ApiException(400, "DUPLICATE_SEAT", "Seat selected more than once");
@@ -235,30 +221,8 @@ public class BookingService {
                                 () ->
                                         new ApiException(
                                                 404, "SCREEN_NOT_FOUND", "Screen not found"));
-        var valid =
-                show.layoutVersionId == null
-                        ? List.<LayoutSeat>of()
-                        : layoutSeats.findByLayoutVersionIdAndIdIn(show.layoutVersionId, requested);
-        if (valid.isEmpty() && show.layoutVersionId != null) {
-            var legacy = screen.seats.stream().filter(seat -> requested.contains(seat.id)).toList();
-            if (legacy.size() == requested.size())
-                valid =
-                        legacy.stream()
-                                .map(
-                                        seat -> {
-                                            var x = new LayoutSeat();
-                                            x.id = seat.id;
-                                            x.label = seat.label;
-                                            x.disabled = seat.disabled;
-                                            return x;
-                                        })
-                                .toList();
-        }
-        if (valid.size() != requested.size() || valid.stream().anyMatch(s -> s.disabled))
-            throw new ApiException(
-                    400,
-                    "INVALID_SEAT",
-                    "One or more seats are invalid or unavailable for this show layout");
+        showSeats.validateSelection(show, requested);
+        showSeats.rejectOtherHolds(show, requested, u.id);
         if (bookings.anySeatBooked(
                 show.id, requested, List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED)))
             throw new ApiException(
@@ -349,7 +313,8 @@ public class BookingService {
                                         + String.join(", ", selected)
                                         + " cancelled for "
                                         + b.movie);
-        emailBookingUpdate(b);
+        emailBookingUpdate(b, selected);
+        bookings.flush();
         offerNext(b.showId, b.movie);
         log.info("Booking state bookingId={} status={} confirmation={}", b.id, b.status, b.confirmationStatus);
         return b;
@@ -405,7 +370,8 @@ public class BookingService {
                                     + b.movie
                                     + ": "
                                     + b.cancellationReason);
-            emailBookingUpdate(b);
+            emailBookingUpdate(b, selected);
+            bookings.flush();
             offerNext(b.showId, b.movie);
         }
         log.info("Booking state bookingId={} status={} confirmation={}", b.id, b.status, b.confirmationStatus);
@@ -445,6 +411,10 @@ public class BookingService {
     }
 
     private void emailBookingUpdate(Booking booking) {
+        emailBookingUpdate(booking, List.of());
+    }
+
+    private void emailBookingUpdate(Booking booking, List<String> cancelledSeats) {
         users.findById(booking.userId)
                 .filter(user -> user.email != null && !user.email.isBlank())
                 .ifPresent(
@@ -454,45 +424,13 @@ public class BookingService {
                                             .flatMap(show -> movies.findById(show.movieId))
                                             .map(movie -> movie.posterUrl)
                                             .orElse(null);
-                            notifications.sendTicket(user, booking, poster);
+                            notifications.sendTicket(user, booking, poster, cancelledSeats);
                         });
     }
 
     private int availableSeatCount(String showId) {
         var show = shows.findById(showId).orElse(null);
-        if (show == null) return 0;
-        var unavailable =
-                new HashSet<>(
-                        bookings.findBookedSeatIds(
-                                showId, List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED)));
-        unavailable.addAll(
-                holds
-                        .findByShowIdAndStatusAndExpiresAtAfter(
-                                showId, SeatHoldStatus.ACTIVE, Instant.now())
-                        .stream()
-                        .map(h -> h.seatId)
-                        .toList());
-        if (show.layoutVersionId != null) {
-            return (int)
-                    layoutSeats
-                            .findByLayoutVersionIdOrderByRowNumberAscColumnNumberAsc(
-                                    show.layoutVersionId)
-                            .stream()
-                            .filter(seat -> !seat.disabled && !unavailable.contains(seat.id))
-                            .count();
-        }
-        return screens.findById(show.screenId)
-                .map(
-                        screen ->
-                                (int)
-                                        screen.seats.stream()
-                                                .filter(
-                                                        seat ->
-                                                                !seat.disabled
-                                                                        && !unavailable.contains(
-                                                                                seat.id))
-                                                .count())
-                .orElse(0);
+        return show == null ? 0 : (int) showSeats.occupancy(show).availableSeatCount();
     }
 
     @Transactional

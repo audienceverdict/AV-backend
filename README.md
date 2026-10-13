@@ -92,3 +92,19 @@ Arguments, return values, JWTs, OTPs, and email bodies are not logged. Unexpecte
 errors include the exception type and stack frames without the exception message.
 
 Movie catalog enhancements, URL-only media examples, people/credits APIs, and migration instructions: [docs/movie-catalog.md](docs/movie-catalog.md).
+
+## Swagger / OpenAPI documentation
+
+Start or restart the updated application with `mvn spring-boot:run`. With the default `upen` profile on port 8080:
+
+- Swagger UI: http://localhost:8080/swagger-ui/index.html (also http://localhost:8080/swagger-ui.html)
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- OpenAPI YAML: http://localhost:8080/v3/api-docs.yaml
+
+All 82 API operations are grouped by controller with descriptions, path/query parameters, request bodies, response schemas, validation constraints, enum values, success/error responses and access requirements. The spec is generated from the application so changes to route signatures and models are reflected automatically. Layout details and show availability include explicit schemas for their map-based bodies.
+
+Use the authentication section to request and verify an email OTP. If `registrationRequired` is true, complete registration. Copy the returned `accessToken`, click **Authorize**, and paste the token without the `Bearer` prefix. Protected operations then send `Authorization: Bearer <token>`; administrative operations require an ADMIN account. Public operations are marked without a lock. Documentation is available without signing in.
+
+Use the deployed host, scheme, port and context path when accessing another environment; production config uses port 443. Swagger does not change existing API authorization rules. In particular, payment lookup remains public as configured in `SecurityConfig`. Error responses describe applicable failures; not every operation produces every listed error. Email OTP failures can return the separate `{success:false,message:...}` envelope.
+
+The Spring Boot 3.4-compatible springdoc 2.8 dependency follows the [official compatibility matrix](https://springdoc.org/v2/).

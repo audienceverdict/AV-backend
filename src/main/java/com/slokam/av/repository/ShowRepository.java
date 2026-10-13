@@ -10,6 +10,13 @@ import java.time.*;
 import java.util.*;
 
 public interface ShowRepository extends JpaRepository<Show, String> {
+    boolean existsByLayoutVersionId(String versionId);
+    List<Show> findByScreenId(String screenId);
+
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Show s where s.id=:id")
+    Optional<Show> lockById(@Param("id") String id);
+
     List<Show> findByMovieIdAndDateGreaterThanEqual(String movieId, LocalDate date);
 
     List<Show> findByTheatreIdAndDate(String theatreId, LocalDate date);

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.*;
 
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Booking")
 @RestController
 @RequestMapping("/api/v1/bookings")
 public class BookingController {
@@ -24,36 +25,43 @@ public class BookingController {
         this.service = service;
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "List bookings owned by the authenticated account", description = "List bookings owned by the authenticated account.")
     @GetMapping("/me")
     public List<Booking> mine(Principal p) {
         return service.mine(p);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Temporarily hold selected seats for a show", description = "Temporarily hold selected seats for a show. Conflicting or unavailable seats are rejected.")
     @PostMapping("/seat-holds")
     public List<SeatHold> hold(Principal p, @Valid @RequestBody SeatHoldRequest r) {
         return service.hold(p, r);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "List the authenticated account active seat holds for the requested show", description = "List the authenticated account active seat holds for the requested show.")
     @GetMapping("/seat-holds")
     public List<SeatHold> activeHolds(Principal p, @RequestParam String showId) {
         return service.activeHolds(p, showId);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "List all customer bookings", description = "List all customer bookings.")
     @GetMapping("/admin")
     public List<Booking> all() {
         return service.all();
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Get a booking accessible to its owner or an administrator", description = "Get a booking accessible to its owner or an administrator.")
     @GetMapping("/{id}")
     public Booking get(@PathVariable String id, Principal p) {
         return service.get(id, p);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Create a booking for selected seats and ticket type", description = "Create a booking for selected seats and ticket type. Availability and seat holds are checked.")
     @PostMapping
     public Booking create(Principal p, @Valid @RequestBody CreateBookingRequest r) {
         return service.create(p, r);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cancel the owner booking", description = "Cancel the owner booking. Omit the body or seatIds to cancel all eligible seats; supply seatIds for partial cancellation.")
     @PostMapping("/{id}/cancel")
     public Booking cancel(
             @PathVariable String id,
@@ -62,17 +70,20 @@ public class BookingController {
         return service.cancel(id, p, request == null ? null : request.seatIds());
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Confirm a customer booking as an administrator", description = "Confirm a customer booking as an administrator.")
     @PostMapping("/admin/{id}/confirm")
     public Booking confirm(@PathVariable String id) {
         return service.adminConfirm(id);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cancel all or selected booking seats with a required administrative reason", description = "Cancel all or selected booking seats with a required administrative reason.")
     @PostMapping("/admin/{id}/cancel")
     public Booking adminCancel(
             @PathVariable String id, @Valid @RequestBody AdminCancellationRequest request) {
         return service.adminCancel(id, request.reason(), request.seatIds());
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Set the booking attendance flag", description = "Set the booking attendance flag.")
     @PostMapping("/admin/{id}/attendance")
     public Booking attended(@PathVariable String id, @RequestParam boolean attended) {
         return service.markAttended(id, attended);

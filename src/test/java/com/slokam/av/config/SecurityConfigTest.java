@@ -51,4 +51,12 @@ class SecurityConfigTest {
     void profileStillRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
     }
+    @Test
+    void layoutCompatibilityAssessmentRequiresAdmin() throws Exception {
+        String path="/api/v1/theatres/screens/screen/layout-compatibility";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("viewer").roles("USER")))
+                .andExpect(status().isForbidden());
+    }
+
 }

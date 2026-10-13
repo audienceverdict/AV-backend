@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.*;
 
 public interface SeatHoldRepository extends JpaRepository<SeatHold, String> {
+    List<SeatHold> findByShowId(String showId);
+
     List<SeatHold> findByUserIdAndStatusAndExpiresAtAfter(
             String userId, SeatHoldStatus status, Instant now);
 

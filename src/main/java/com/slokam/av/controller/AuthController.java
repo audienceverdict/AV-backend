@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.Map;
 
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Auth")
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -29,6 +30,8 @@ public class AuthController {
         this.service = service;
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Request an email OTP", description = "Request an email OTP. Returns expiry and resend timing; email delivery depends on the configured SMTP provider.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.OtpResponse.class)))
     @PostMapping("/email-otp/request")
     public ResponseEntity<?> requestEmail(@Valid @RequestBody EmailOtpRequest r) {
         try {
@@ -44,6 +47,8 @@ public class AuthController {
         }
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Verify the email OTP", description = "Verify the email OTP. Existing complete accounts receive a Bearer access token; registrationRequired=true means registration must be completed.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.EmailOtpResult.class)))
     @PostMapping("/email-otp/verify")
     public ResponseEntity<?> verifyEmail(@Valid @RequestBody EmailOtpVerifyRequest r) {
         try {
@@ -57,6 +62,8 @@ public class AuthController {
         }
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Complete registration using the verified email OTP, profile and mobile details, then receive a Bearer access token", description = "Complete registration using the verified email OTP, profile and mobile details, then receive a Bearer access token.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.EmailOtpResult.class)))
     @PostMapping("/email-otp/register")
     public ResponseEntity<?> registerEmail(@Valid @RequestBody EmailOtpRegistrationRequest r) {
         try {
@@ -89,11 +96,13 @@ public class AuthController {
         }
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Get the authenticated account profile", description = "Get the authenticated account profile.")
     @GetMapping("/me")
     public UserResponse me(Principal p) {
         return service.current(p.getName());
     }
 
+    @io.swagger.v3.oas.annotations.Operation(summary = "Update the authenticated account name, email and alternative mobile", description = "Update the authenticated account name, email and alternative mobile.")
     @PutMapping("/me")
     public UserResponse update(Principal p, @Valid @RequestBody UpdateProfileRequest r) {
         return service.update(p.getName(), r);

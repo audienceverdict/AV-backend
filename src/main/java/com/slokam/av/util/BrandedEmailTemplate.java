@@ -61,6 +61,11 @@ public final class BrandedEmailTemplate {
     }
 
     public static EmailContent ticket(String name, Booking booking, String posterUrl) {
+        return ticket(name, booking, posterUrl, booking.seatIds, java.util.List.of());
+    }
+
+    public static EmailContent ticket(String name, Booking booking, String posterUrl,
+            java.util.List<String> seats, java.util.List<String> cancelledSeats) {
         String state = booking.status == null ? "BOOKING" : booking.status.name();
         String headline =
                 switch (state) {
@@ -68,6 +73,7 @@ public final class BrandedEmailTemplate {
                     case "CANCELLED" -> "Your booking was cancelled";
                     default -> "Your booking is received";
                 };
+        if (!cancelledSeats.isEmpty()) headline = "Your booking cancellation update";
         String plain =
                 "Hi "
                         + safe(name)
@@ -84,7 +90,7 @@ public final class BrandedEmailTemplate {
                         + " at "
                         + booking.time
                         + ". Seats: "
-                        + String.join(", ", booking.seatIds)
+                        + String.join(", ", seats)
                         + ". Tickets: "
                         + booking.ticketCount
                         + ". Booking: "
@@ -115,7 +121,7 @@ public final class BrandedEmailTemplate {
                         + row("Venue", booking.theatre)
                         + row("Screen", booking.screen)
                         + row("Showtime", booking.date + " · " + booking.time)
-                        + row("Seats", String.join(", ", booking.seatIds))
+                        + row("Seats", String.join(", ", seats))
                         + row("Tickets", Integer.toString(booking.ticketCount))
                         + row(
                                 "Amount",
@@ -136,6 +142,10 @@ public final class BrandedEmailTemplate {
                     "<p style=\"padding:0 22px;color:#655f67\">Cancellation note: "
                             + escape(booking.cancellationReason)
                             + "</p>";
+        if (!cancelledSeats.isEmpty()) {
+            plain += ". Cancelled seats: " + String.join(", ", cancelledSeats);
+            body += row("Cancelled seats", String.join(", ", cancelledSeats));
+        }
         return content(headline, plain, body, posterUrl, "movie-poster");
     }
 

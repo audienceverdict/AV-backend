@@ -6,3 +6,14 @@ logging:
   level:
     root: INFO
     com.slokam.av: ${APP_LOG_LEVEL:INFO}
+
+# Generated from controller signatures, Jackson models and validation constraints.
+springdoc:
+  packages-to-scan: com.slokam.av.controller
+  paths-to-match: /api/v1/**
+  override-with-generic-response: false
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true

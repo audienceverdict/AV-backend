@@ -11,7 +11,6 @@ import com.slokam.av.exception.custom.ApiException;
 import com.slokam.av.repository.LayoutSeatRepository;
 import com.slokam.av.repository.LayoutVersionRepository;
 import com.slokam.av.repository.ScreenRepository;
-import com.slokam.av.repository.SeatRepository;
 import com.slokam.av.repository.TheatreRepository;
 
 import jakarta.persistence.EntityManager;
@@ -29,25 +28,24 @@ public class TheatreService {
     private final ScreenRepository screens;
     private final LayoutVersionRepository versions;
     private final LayoutSeatRepository layoutSeats;
-    private final SeatRepository seats;
     private final com.fasterxml.jackson.databind.ObjectMapper mapper;
     private final EntityManager em;
+    private final com.slokam.av.repository.ShowRepository shows;
 
     public TheatreService(
             TheatreRepository theatres,
             ScreenRepository screens,
             LayoutVersionRepository versions,
             LayoutSeatRepository layoutSeats,
-            SeatRepository seats,
             com.fasterxml.jackson.databind.ObjectMapper mapper,
-            EntityManager em) {
+            EntityManager em, com.slokam.av.repository.ShowRepository shows) {
         this.theatres = theatres;
         this.screens = screens;
         this.versions = versions;
         this.layoutSeats = layoutSeats;
-        this.seats = seats;
         this.mapper = mapper;
         this.em = em;
+        this.shows = shows;
     }
 
     public Page<Theatre> list(int page, int size) {
@@ -121,30 +119,9 @@ public class TheatreService {
     }
 
     private void deleteScreenRows(Object id) {
-        var showIds =
-                em.createNativeQuery("select id from shows where screen_id=?1")
-                        .setParameter(1, id)
-                        .getResultList();
-        for (Object showId : showIds) {
-            var bookings =
-                    em.createNativeQuery("select id from bookings where show_id=?1")
-                            .setParameter(1, showId)
-                            .getResultList();
-            for (Object bookingId : bookings) {
-                em.createNativeQuery("delete from payments where booking_id=?1")
-                        .setParameter(1, bookingId)
-                        .executeUpdate();
-                em.createNativeQuery("delete from booking_seats where booking_id=?1")
-                        .setParameter(1, bookingId)
-                        .executeUpdate();
-            }
-            em.createNativeQuery("delete from bookings where show_id=?1")
-                    .setParameter(1, showId)
-                    .executeUpdate();
-        }
-        em.createNativeQuery("delete from shows where screen_id=?1")
-                .setParameter(1, id)
-                .executeUpdate();
+        lockScreen(id.toString());
+        if (!shows.findByScreenId(id.toString()).isEmpty())
+            throw new ApiException(409, "SCREEN_HAS_SHOWS", "Screens with shows cannot be deleted; archive the screen instead");
         var versions =
                 em.createNativeQuery("select id from layout_versions where screen_id=?1")
                         .setParameter(1, id)
@@ -165,7 +142,7 @@ public class TheatreService {
     public List<Screen> screens(String theatreId) {
         log.debug("Processing TheatreService.screens");
         get(theatreId);
-        return screens.findByTheatreId(theatreId);
+        return screens.findByTheatreId(theatreId).stream().map(this::screenView).toList();
     }
 
     public List<LayoutVersion> layoutVersions(String screenId) {
@@ -185,105 +162,149 @@ public class TheatreService {
 
     @Transactional
     public LayoutVersion publishLayoutVersion(String screenId, String versionId) {
-        log.debug("Processing TheatreService.publishLayoutVersion");
-        var draft = getLayoutVersion(screenId, versionId);
-        if (draft.status != LayoutVersionStatus.DRAFT)
-            throw new ApiException(409, "LAYOUT_NOT_DRAFT", "Only draft layouts can be published");
-        if (layoutSeats.findByLayoutVersionIdOrderByRowNumberAscColumnNumberAsc(draft.id).isEmpty())
-            throw new ApiException(400, "EMPTY_LAYOUT", "A layout must contain at least one seat");
-        versions.findByScreenIdOrderByVersionNumberDesc(screenId).stream()
-                .filter(v -> v.status == LayoutVersionStatus.ACTIVE)
-                .forEach(v -> v.status = LayoutVersionStatus.ARCHIVED);
+        var screen = lockScreen(screenId);
+        var draft = editable(screenId, versionId);
+        var stored = versionSeats(draft.id);
+        validateSeats(stored);
+        snapshot(draft, stored);
+        for (var previous : versions.findByScreenIdOrderByVersionNumberDesc(screenId)) {
+            if (previous.status == LayoutVersionStatus.ACTIVE) {
+                previous.status = LayoutVersionStatus.ARCHIVED;
+                previous.activeScreenId = null;
+            }
+        }
+        versions.flush(); // Release the unique active-screen slot before assigning it.
         draft.status = LayoutVersionStatus.ACTIVE;
+        draft.activeScreenId = screenId;
         draft.publishedAt = java.time.Instant.now();
-        log.info("Publishing layout screenId={} versionId={}", screenId, versionId);
-        return versions.save(draft);
+        screen.activeLayoutVersionId = draft.id;
+        screen.layoutVersion = draft.versionNumber;
+        screen.rows = stored.stream().mapToInt(x -> x.rowNumber).max().orElseThrow();
+        screen.seatsPerRow = stored.stream().mapToInt(x -> x.columnNumber).max().orElseThrow();
+        return versions.saveAndFlush(draft);
     }
 
     @Transactional
     public LayoutVersion createLayoutVersion(String screenId, String sourceVersionId, String name) {
-        log.debug("Processing TheatreService.createLayoutVersion");
-        screens.findById(screenId)
-                .orElseThrow(() -> new ApiException(404, "SCREEN_NOT_FOUND", "Screen not found"));
-        var source =
-                sourceVersionId == null || sourceVersionId.isBlank()
-                        ? versions.findFirstByScreenIdAndStatusOrderByVersionNumberDesc(
-                                        screenId, LayoutVersionStatus.ACTIVE)
-                                .orElse(null)
-                        : getLayoutVersion(screenId, sourceVersionId);
+        lockScreen(screenId);
+        var source = sourceVersionId == null || sourceVersionId.isBlank()
+                ? activeLayout(screenId) : getLayoutVersion(screenId, sourceVersionId);
+        var sourceSeats = versionSeats(source.id);
+        validateSeats(sourceSeats);
+        return newDraft(screenId, name, sourceSeats);
+    }
+
+    private LayoutVersion newDraft(String screenId, String name, List<LayoutSeat> sourceSeats) {
         var v = new LayoutVersion();
         v.screenId = screenId;
-        v.versionNumber =
-                versions.findByScreenIdOrderByVersionNumberDesc(screenId).stream()
-                                .mapToInt(x -> x.versionNumber)
-                                .max()
-                                .orElse(0)
-                        + 1;
-        v.name = name == null || name.isBlank() ? "Layout V" + v.versionNumber : name;
-        try {
-            v.snapshot = source == null ? "{}" : source.snapshot;
-            var savedVersion = versions.saveAndFlush(v);
-            List<LayoutSeat> copy =
-                    source == null
-                            ? legacySeats(screenId, savedVersion.id)
-                            : layoutSeats
-                                    .findByLayoutVersionIdOrderByRowNumberAscColumnNumberAsc(
-                                            source.id)
-                                    .stream()
-                                    .map(s -> copySeat(s, savedVersion.id))
-                                    .toList();
-            layoutSeats.saveAll(copy);
-            log.info("Layout version created screenId={} versionId={} seatCount={}", screenId, savedVersion.id, copy.size());
-            return savedVersion;
-        } catch (ApiException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Layout version creation failed screenId={} failureType={}", screenId, e.getClass().getSimpleName());
-            throw new ApiException(400, "LAYOUT_VERSION_ERROR", "Unable to create layout version");
-        }
+        v.versionNumber = versions.findByScreenIdOrderByVersionNumberDesc(screenId).stream()
+                .mapToInt(x -> x.versionNumber).max().orElse(0) + 1;
+        v.name = name == null || name.isBlank() ? "Layout V" + v.versionNumber : name.trim();
+        if (v.name.length() > 120) throw new ApiException(400, "INVALID_LAYOUT_NAME", "Layout name is too long");
+        v.snapshot = "{}";
+        v = versions.saveAndFlush(v);
+        final String versionId = v.id;
+        var copied = sourceSeats.stream().map(x -> copySeat(x, versionId)).toList();
+        layoutSeats.saveAllAndFlush(copied);
+        snapshot(v, copied);
+        return v;
     }
 
     @Transactional
-    public List<LayoutSeat> saveLayoutSeats(
-            String screenId, String versionId, List<LayoutSeat> input) {
-        log.debug("Processing TheatreService.saveLayoutSeats");
-        var v = getLayoutVersion(screenId, versionId);
-        if (v.status != LayoutVersionStatus.DRAFT)
-            throw new ApiException(409, "LAYOUT_LOCKED", "Only draft layouts can be edited");
-        Set<String> labels = new HashSet<>(), positions = new HashSet<>();
-        for (var s : input) {
-            if (s.label == null
-                    || s.label.isBlank()
-                    || s.rowNumber < 1
-                    || s.columnNumber < 1
-                    || !labels.add(s.label)
-                    || !positions.add(s.rowNumber + ":" + s.columnNumber))
-                throw new ApiException(
-                        400, "INVALID_SEATS", "Seat labels and positions must be valid and unique");
+    public List<LayoutSeat> saveLayoutSeats(String screenId, String versionId, List<LayoutSeat> input) {
+        lockScreen(screenId);
+        var v = editable(screenId, versionId);
+        validateSeats(input);
+        var old = versionSeats(v.id);
+        var byId = new HashMap<String, LayoutSeat>();
+        old.forEach(x -> byId.put(x.bookingSeatId(), x));
+        var byPositionAndLabel = new HashMap<String, LayoutSeat>();
+        old.forEach(x -> byPositionAndLabel.put(seatKey(x), x));
+        var retained = new HashSet<String>();
+        var result = new ArrayList<LayoutSeat>();
+        for (var next : input) {
+            var previous = next.seatId != null ? byId.get(next.seatId) : byId.get(next.id);
+            if (next.seatId != null && previous == null)
+                throw new ApiException(400, "INVALID_SEAT_ID", "Seat ID does not belong to this draft; omit IDs for new seats");
+            if (previous == null) previous = byPositionAndLabel.get(seatKey(next));
+            var saved = previous == null ? new LayoutSeat() : copySeat(previous, v.id);
+            if (previous != null) saved.id = previous.id;
+            if (saved.seatId == null) saved.seatId = saved.id;
+            if (!retained.add(saved.id)) throw new ApiException(400, "DUPLICATE_SEAT", "Seat ID selected more than once");
+            saved.layoutVersionId = v.id;
+            saved.label = next.label.trim(); saved.rowNumber = next.rowNumber;
+            saved.columnNumber = next.columnNumber; saved.category = next.category;
+            saved.disabled = next.disabled; saved.color = next.color;
+            result.add(saved);
         }
-        layoutSeats.deleteVersionSeats(v.id);
+        // Temporarily free unique labels/positions to support swaps; transaction rollback restores them.
+        for (var previous : old) {
+            previous.label = "~" + previous.id;
+            previous.rowNumber = -1;
+            previous.columnNumber = old.indexOf(previous) + 1;
+        }
+        layoutSeats.saveAllAndFlush(old);
+        layoutSeats.deleteAll(old.stream().filter(x -> !retained.contains(x.id)).toList());
         layoutSeats.flush();
-        input.forEach(
-                s -> {
-                    s.id = UUID.randomUUID().toString();
-                    s.layoutVersionId = v.id;
-                });
-        var saved = layoutSeats.saveAll(input);
-        try {
-            v.snapshot =
-                    mapper.writeValueAsString(
-                            Map.of(
-                                    "seats",
-                                    saved,
-                                    "seatsPerRow",
-                                    input.stream().mapToInt(s -> s.columnNumber).max().orElse(1),
-                                    "rows",
-                                    input.stream().mapToInt(s -> s.rowNumber).max().orElse(1)));
-        } catch (Exception e) {
-            log.warn("Layout snapshot serialization failed versionId={} failureType={}", versionId, e.getClass().getSimpleName());
-        }
-        log.info("Layout seats saved versionId={} count={}", versionId, saved.size());
+        var saved = layoutSeats.saveAllAndFlush(result);
+        snapshot(v, saved);
         return saved;
+    }
+
+    private String seatKey(LayoutSeat s) { return s.label.trim() + ":" + s.rowNumber + ":" + s.columnNumber; }
+
+    public void validateSeats(List<LayoutSeat> input) {
+        if (input == null || input.isEmpty()) throw new ApiException(400, "EMPTY_LAYOUT", "A layout must contain at least one seat");
+        var labels = new HashSet<String>(); var positions = new HashSet<String>(); var ids = new HashSet<String>();
+        for (var seat : input) {
+            if (seat == null || seat.label == null || seat.label.isBlank() || seat.label.trim().length() > 80
+                    || seat.rowNumber < 1 || seat.columnNumber < 1
+                    || !labels.add(seat.label.trim().toUpperCase(Locale.ROOT)) || !positions.add(seat.rowNumber + ":" + seat.columnNumber))
+                throw new ApiException(400, "INVALID_SEATS", "Seat labels and positive positions must be unique");
+            try { com.slokam.av.entity.SeatCategory.valueOf(seat.category); }
+            catch (RuntimeException e) { throw new ApiException(400, "INVALID_CATEGORY", "Unsupported seat category"); }
+            if (seat.color != null && !seat.color.matches("#[0-9a-fA-F]{6}"))
+                throw new ApiException(400, "INVALID_COLOR", "Seat color must be a six-digit hex color");
+            if (seat.seatId != null && (seat.seatId.isBlank() || seat.seatId.length() > 80 || !ids.add(seat.seatId)))
+                throw new ApiException(400, "INVALID_SEAT_ID", "Seat IDs must be valid and unique");
+        }
+    }
+
+    private void snapshot(LayoutVersion v, List<LayoutSeat> stored) {
+        try { v.snapshot = mapper.writeValueAsString(Map.of("seats", stored,
+                "rows", stored.stream().mapToInt(x -> x.rowNumber).max().orElseThrow(),
+                "seatsPerRow", stored.stream().mapToInt(x -> x.columnNumber).max().orElseThrow())); }
+        catch (Exception e) { throw new ApiException(500, "LAYOUT_SNAPSHOT_ERROR", "Unable to persist layout snapshot"); }
+    }
+
+    /** Snapshots are recovery evidence, not a fallback map served to bookings. */
+    public boolean snapshotMatches(LayoutVersion version, List<LayoutSeat> stored) {
+        try {
+            var root = mapper.readTree(version.snapshot);
+            var node = root == null ? null : root.get("seats");
+            if (node == null) return root != null && root.isObject(); // Legacy initial snapshots were {}.
+            if (!node.isArray()) return false;
+            var expected = Arrays.asList(mapper.treeToValue(node, LayoutSeat[].class));
+            if (expected.size() != stored.size()) return false;
+            return expected.stream().map(this::geometryKey).sorted().toList()
+                    .equals(stored.stream().map(this::geometryKey).sorted().toList());
+        } catch (Exception e) { return false; }
+    }
+
+    private String geometryKey(LayoutSeat s) {
+        return s.label + "\u0000" + s.rowNumber + "\u0000" + s.columnNumber + "\u0000"
+                + s.category + "\u0000" + s.disabled + "\u0000" + s.color;
+    }
+
+    public Screen lockScreen(String screenId) {
+        return screens.lockById(screenId).orElseThrow(() -> new ApiException(404, "SCREEN_NOT_FOUND", "Screen not found"));
+    }
+
+    private LayoutVersion editable(String screenId, String versionId) {
+        var v = getLayoutVersion(screenId, versionId);
+        if (v.status != LayoutVersionStatus.DRAFT || shows.existsByLayoutVersionId(v.id))
+            throw new ApiException(409, "LAYOUT_LOCKED", "Only drafts without show references can be edited or published");
+        return v;
     }
 
     private LayoutVersion getLayoutVersion(String screenId, String versionId) {
@@ -303,7 +324,7 @@ public class TheatreService {
 
     private LayoutSeat copySeat(LayoutSeat s, String versionId) {
         var copy = new LayoutSeat();
-        copy.id = UUID.randomUUID().toString();
+        copy.seatId = s.bookingSeatId();
         copy.layoutVersionId = versionId;
         copy.label = s.label;
         copy.rowNumber = s.rowNumber;
@@ -314,89 +335,90 @@ public class TheatreService {
         return copy;
     }
 
-    private List<LayoutSeat> legacySeats(String screenId, String versionId) {
-        return seats.findByScreenId(screenId).stream()
-                .map(
-                        s -> {
-                            var x = new LayoutSeat();
-                            x.layoutVersionId = versionId;
-                            x.label = s.label;
-                            x.rowNumber = s.rowNumber;
-                            x.columnNumber = s.columnNumber;
-                            x.category = s.category;
-                            x.disabled = s.disabled;
-                            x.color = s.color;
-                            return x;
-                        })
-                .toList();
-    }
-
     public List<LayoutSeat> versionSeats(String versionId) {
         log.debug("Processing TheatreService.versionSeats");
         return layoutSeats.findByLayoutVersionIdOrderByRowNumberAscColumnNumberAsc(versionId);
     }
 
     public LayoutVersion activeLayout(String screenId) {
-        log.debug("Processing TheatreService.activeLayout");
-        return versions.findFirstByScreenIdAndStatusOrderByVersionNumberDesc(
-                        screenId, LayoutVersionStatus.ACTIVE)
-                .orElseThrow(
-                        () ->
-                                new ApiException(
-                                        409, "NO_ACTIVE_LAYOUT", "Screen has no active layout"));
+        var screen = screens.findById(screenId).orElseThrow(() -> new ApiException(404, "SCREEN_NOT_FOUND", "Screen not found"));
+        var active = versions.findByScreenIdOrderByVersionNumberDesc(screenId).stream()
+                .filter(x -> x.status == LayoutVersionStatus.ACTIVE).toList();
+        if (active.size() != 1 || (screen.activeLayoutVersionId != null && !screen.activeLayoutVersionId.equals(active.get(0).id)))
+            throw new ApiException(409, "LAYOUT_RECONCILIATION_REQUIRED", "Screen must have exactly one consistent active layout");
+        var stored = versionSeats(active.get(0).id);
+        validateSeats(stored);
+        if (!snapshotMatches(active.get(0), stored))
+            throw new ApiException(409, "LAYOUT_RECONCILIATION_REQUIRED", "Active layout differs from its persisted snapshot");
+        return active.get(0);
     }
 
     @Transactional
     public Screen createScreen(String theatreId, Screen s) {
-        log.debug("Processing TheatreService.createScreen");
         get(theatreId);
-        s.id = UUID.randomUUID().toString();
-        s.theatreId = theatreId;
+        s.id = UUID.randomUUID().toString(); s.theatreId = theatreId;
+        s.activeLayoutVersionId = null; s.layoutVersion = 1; s.layoutLocked = false;
+        initializeScreenSeats(s);
         attachSeats(s);
+        var initialSeats = s.seats == null ? List.<LayoutSeat>of() : s.seats.stream().map(seat -> {
+            var x = new LayoutSeat(); x.seatId = seat.id; x.label = seat.label;
+            x.rowNumber = seat.rowNumber; x.columnNumber = seat.columnNumber;
+            x.category = seat.category; x.disabled = seat.disabled; x.color = seat.color;
+            return x;
+        }).toList();
+        validateSeats(initialSeats);
         var saved = screens.saveAndFlush(s);
-        var initial = createLayoutVersion(saved.id, null, "Layout V1");
-        initial.status = LayoutVersionStatus.ACTIVE;
-        initial.publishedAt = java.time.Instant.now();
-        versions.save(initial);
-        log.info("Screen created screenId={} theatreId={}", saved.id, theatreId);
+        var initial = newDraft(saved.id, "Layout V1", initialSeats);
+        publishLayoutVersion(saved.id, initial.id);
         return saved;
     }
 
     @Transactional
     public Screen updateScreen(String id, Screen next) {
-        log.debug("Processing TheatreService.updateScreen");
-        var s =
-                screens.findById(id)
-                        .orElseThrow(
-                                () ->
-                                        new ApiException(
-                                                404, "SCREEN_NOT_FOUND", "Screen not found"));
-        if (s.layoutLocked && !s.seats.isEmpty())
-            throw new ApiException(
-                    409, "LAYOUT_LOCKED", "This layout is locked and cannot be changed.");
-        s.name = next.name;
-        s.number = next.number;
-        s.status = next.status;
-        s.rows = next.rows;
-        s.seatsPerRow = next.seatsPerRow;
-        s.seats.clear();
-        if (next.seats != null) {
-            next.seats.forEach(
-                    seat -> {
-                        seat.id =
-                                seat.id == null || seat.id.isBlank()
-                                        ? UUID.randomUUID().toString()
-                                        : seat.id;
-                        seat.screen = s;
-                        s.seats.add(seat);
-                    });
+        var screen = lockScreen(id);
+        screen.name = next.name; screen.number = next.number; screen.status = next.status;
+        // Legacy writes go through the same immutable version workflow.
+        if (next.seats != null && !next.seats.isEmpty()) {
+            var draft = createLayoutVersion(id, null, null);
+            var existingIds = versionSeats(draft.id).stream().map(LayoutSeat::bookingSeatId).collect(java.util.stream.Collectors.toSet());
+            var input = next.seats.stream().map(seat -> {
+                var x = new LayoutSeat(); x.seatId = existingIds.contains(seat.id) ? seat.id : null; x.label = seat.label;
+                x.rowNumber = seat.rowNumber; x.columnNumber = seat.columnNumber;
+                x.category = seat.category; x.disabled = seat.disabled; x.color = seat.color;
+                return x;
+            }).toList();
+            saveLayoutSeats(id, draft.id, input);
+            publishLayoutVersion(id, draft.id);
+        } else {
+            throw new ApiException(400, "EMPTY_LAYOUT", "Add at least one seat before saving the layout");
         }
-        if (s.seats.isEmpty())
-            throw new ApiException(
-                    400, "EMPTY_LAYOUT", "Add at least one seat before saving the layout.");
-        s.layoutLocked = true;
-        log.info("Screen updated screenId={} seatCount={}", id, s.seats.size());
-        return screens.saveAndFlush(s);
+        return screenView(screen);
+    }
+
+    private Screen screenView(Screen stored) {
+        var view = new Screen(); view.id = stored.id; view.theatreId = stored.theatreId;
+        view.name = stored.name; view.number = stored.number; view.rows = stored.rows;
+        view.seatsPerRow = stored.seatsPerRow; view.layoutVersion = stored.layoutVersion;
+        view.activeLayoutVersionId = stored.activeLayoutVersionId; view.status = stored.status;
+        view.createdAt = stored.createdAt; view.updatedAt = stored.updatedAt;
+        view.layoutLocked = false;
+        // Listing screens must also work for empty or unreconciled legacy layouts.
+        // Strict layout validation remains in activeLayout for show creation.
+        var active = versions.findByScreenIdOrderByVersionNumberDesc(stored.id).stream()
+                .filter(x -> x.status == LayoutVersionStatus.ACTIVE)
+                .filter(x -> stored.activeLayoutVersionId == null || stored.activeLayoutVersionId.equals(x.id))
+                .findFirst();
+        if (active.isEmpty()) {
+            view.seats = stored.seats == null ? List.of() : stored.seats;
+            return view;
+        }
+        view.seats = versionSeats(active.get().id).stream().map(x -> {
+            var seat = new com.slokam.av.entity.Seat(); seat.id = x.bookingSeatId();
+            seat.screen = view; seat.label = x.label; seat.rowNumber = x.rowNumber;
+            seat.columnNumber = x.columnNumber; seat.category = x.category;
+            seat.color = x.color; seat.disabled = x.disabled; return seat;
+        }).toList();
+        return view;
     }
 
     private void attachMedia(Theatre t) {
@@ -406,6 +428,38 @@ public class TheatreService {
                         m.id = UUID.randomUUID().toString();
                         m.theatre = t;
                     });
+    }
+
+    private void initializeScreenSeats(Screen screen) {
+        if (screen.seats != null && !screen.seats.isEmpty()) return;
+        if (screen.rows < 1 || screen.seatsPerRow < 1) {
+            throw new ApiException(400, "EMPTY_LAYOUT",
+                    "Provide at least one seat or positive rows and seatsPerRow to initialize the layout");
+        }
+        long capacity = (long) screen.rows * screen.seatsPerRow;
+        if (capacity > 10_000) {
+            throw new ApiException(400, "INVALID_LAYOUT_DIMENSIONS",
+                    "An automatically generated layout cannot exceed 10000 seats");
+        }
+        screen.seats = new ArrayList<>((int) capacity);
+        for (int row = 1; row <= screen.rows; row++) {
+            String label = rowLabel(row);
+            for (int column = 1; column <= screen.seatsPerRow; column++) {
+                var seat = new com.slokam.av.entity.Seat();
+                seat.label = label + column;
+                seat.rowNumber = row;
+                seat.columnNumber = column;
+                screen.seats.add(seat);
+            }
+        }
+    }
+
+    private String rowLabel(int row) {
+        var label = new StringBuilder();
+        for (int value = row; value > 0; value = (value - 1) / 26) {
+            label.append((char) ('A' + (value - 1) % 26));
+        }
+        return label.reverse().toString();
     }
 
     private void attachSeats(Screen s) {

@@ -30,7 +30,8 @@ public class NotificationService {
     private final BookingRepository bookings;
     private final ShowRepository shows;
     private final MovieRepository movies;
-    private final EmailProvider email;
+    private final EmailDeliveryService email;
+    private final BookingSeatLabels seatLabels;
 
     public NotificationService(
             NotificationRepository notifications,
@@ -38,13 +39,14 @@ public class NotificationService {
             BookingRepository bookings,
             ShowRepository shows,
             MovieRepository movies,
-            EmailProvider email) {
+            EmailDeliveryService email, BookingSeatLabels seatLabels) {
         this.notifications = notifications;
         this.users = users;
         this.bookings = bookings;
         this.shows = shows;
         this.movies = movies;
         this.email = email;
+        this.seatLabels = seatLabels;
     }
 
     public String record(String userId, String type, String message) {
@@ -59,30 +61,22 @@ public class NotificationService {
 
     public void sendTicket(User user, Booking booking, String posterUrl) {
         log.debug("Processing NotificationService.sendTicket");
-        String subject =
-                switch (booking.status) {
-                    case CONFIRMED -> "Your ticket for " + booking.movie + " is confirmed";
-                    case CANCELLED -> "Booking update for " + booking.movie;
-                    default -> "Booking received for " + booking.movie;
-                };
-        try {
-            var content = BrandedEmailTemplate.ticket(user.name, booking, posterUrl);
-            email.sendHtml(
-                    user.email,
-                    subject,
-                    content.plainText(),
-                    content.html(),
-                    content.inlinePosterDataUri());
-            record(user.id, "BOOKING_" + booking.status.name(), "Email sent: " + subject);
-        } catch (RuntimeException e) {
-            log.warn("Booking {} saved, but email delivery failed: {}", booking.id, e.getClass().getSimpleName());
-            record(
-                    user.id,
-                    "BOOKING_EMAIL_DELIVERY_PENDING",
-                    "Ticket details for "
-                            + booking.movie
-                            + " are saved in My Bookings. Email delivery can be retried.");
-        }
+        sendTicket(user, booking, posterUrl, List.of());
+    }
+
+    public void sendTicket(User user, Booking booking, String posterUrl, List<String> cancelledIds) {
+        String subject = !cancelledIds.isEmpty() ? "Booking cancellation for " + booking.movie
+                : booking.status == BookingStatus.CONFIRMED ? "Your ticket for " + booking.movie + " is confirmed"
+                : "Booking update for " + booking.movie;
+        var content = BrandedEmailTemplate.ticket(user.name, booking, posterUrl,
+                seatLabels.resolve(booking, booking.seatIds), seatLabels.resolve(booking, cancelledIds));
+        String userId = user.id;
+        String type = "BOOKING_" + booking.status.name();
+        email.sendHtml(user.email, subject, content.plainText(), content.html(),
+                content.inlinePosterDataUri(),
+                () -> record(userId, type, "Email sent: " + subject),
+                () -> record(userId, "BOOKING_EMAIL_DELIVERY_PENDING",
+                        "Ticket details are saved in My Bookings. Email delivery can be retried."));
     }
 
     public void sendUserMessage(
@@ -222,8 +216,9 @@ public class NotificationService {
                 subject,
                 content.plainText(),
                 content.html(),
-                content.inlinePosterDataUri());
-        record(user.id, type, truncate(subject + ": " + body + " [delivery:email]"));
+                content.inlinePosterDataUri(),
+                () -> record(user.id, type, truncate(subject + ": " + body + " [delivery:email]")),
+                () -> record(user.id, type + "_EMAIL_PENDING", "Email delivery can be retried."));
     }
 
     private String posterFor(Booking booking) {
@@ -242,7 +237,9 @@ public class NotificationService {
                 .replace("{{movie}}", booking == null ? "" : booking.movie)
                 .replace("{{show_date}}", booking == null ? "" : booking.date)
                 .replace("{{show_time}}", booking == null ? "" : booking.time)
-                .replace("{{booking_id}}", booking == null ? "" : booking.id);
+                .replace("{{booking_id}}", booking == null ? "" : booking.id)
+                .replace("{{seats}}", booking == null ? "" : String.join(", ", seatLabels.resolve(booking, booking.seatIds)))
+                + (booking == null ? "" : "\nSeats: " + String.join(", ", seatLabels.resolve(booking, booking.seatIds)));
     }
 
     private String safeName(String name) {

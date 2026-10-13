@@ -23,7 +23,7 @@ public class OtpService {
     private static final Logger log = LoggerFactory.getLogger(OtpService.class);
     private final OtpVerificationRepository records;
     private final AuthLockRepository locks;
-    private final com.slokam.av.service.EmailProvider email;
+    private final com.slokam.av.service.EmailDeliveryService email;
     private final BCryptPasswordEncoder hashes = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
     private final long expiry, cooldown;
@@ -32,7 +32,7 @@ public class OtpService {
     public OtpService(
             OtpVerificationRepository records,
             AuthLockRepository locks,
-            com.slokam.av.service.EmailProvider email,
+            com.slokam.av.service.EmailDeliveryService email,
             @Value("${auth.otp.expiration-seconds:300}") long expiry,
             @Value("${auth.otp.resend-cooldown-seconds:30}") long cooldown,
             @Value("${auth.otp.max-attempts:5}") int attempts,

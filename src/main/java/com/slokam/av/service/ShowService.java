@@ -3,17 +3,13 @@ package com.slokam.av.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.slokam.av.entity.ActiveStatus;
-import com.slokam.av.entity.BookingStatus;
 import com.slokam.av.entity.MovieStatus;
-import com.slokam.av.entity.SeatHoldStatus;
 import com.slokam.av.entity.Show;
 import com.slokam.av.entity.ShowStatus;
 import com.slokam.av.exception.custom.ApiException;
 import com.slokam.av.repository.BookingRepository;
 import com.slokam.av.repository.MovieRepository;
 import com.slokam.av.repository.ScreenRepository;
-import com.slokam.av.repository.SeatHoldRepository;
-import com.slokam.av.repository.SeatRepository;
 import com.slokam.av.repository.ShowRepository;
 import com.slokam.av.repository.TheatreRepository;
 
@@ -30,28 +26,24 @@ public class ShowService {
     private final MovieRepository movies;
     private final TheatreRepository theatres;
     private final ScreenRepository screens;
-    private final SeatRepository seats;
     private final BookingRepository bookings;
-    private final SeatHoldRepository holds;
     private final TheatreService layouts;
+    private final ShowSeatService showSeats;
 
     public ShowService(
             ShowRepository shows,
             MovieRepository movies,
             TheatreRepository theatres,
             ScreenRepository screens,
-            SeatRepository seats,
             BookingRepository bookings,
-            SeatHoldRepository holds,
-            TheatreService layouts) {
+            TheatreService layouts, ShowSeatService showSeats) {
         this.shows = shows;
         this.movies = movies;
         this.theatres = theatres;
         this.screens = screens;
-        this.seats = seats;
         this.bookings = bookings;
-        this.holds = holds;
         this.layouts = layouts;
+        this.showSeats = showSeats;
     }
 
     public List<Show> list(String movieId, String theatreId, LocalDate date) {
@@ -81,31 +73,34 @@ public class ShowService {
                                 () ->
                                         new ApiException(
                                                 404, "SCREEN_NOT_FOUND", "Screen not found"));
-        var booked =
-                bookings.findBookedSeatIds(
-                        id, List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED));
-        var held =
-                holds
-                        .findByShowIdAndStatusAndExpiresAtAfter(
-                                id, SeatHoldStatus.ACTIVE, java.time.Instant.now())
-                        .stream()
-                        .map(h -> h.seatId)
-                        .toList();
-        var unavailable = new LinkedHashSet<String>(booked);
-        unavailable.addAll(held);
-        var version =
-                show.layoutVersionId == null
-                        ? null
-                        : layouts.layoutDetails(show.screenId, show.layoutVersionId);
-        if (version == null || ((List<?>) version.getOrDefault("seats", List.of())).isEmpty())
-            version = Map.of("seats", screen.seats);
-        return Map.of(
-                "show", show, "screen", screen, "layout", version, "bookedSeatIds", unavailable);
+        var occupancy = showSeats.occupancy(show);
+        var version = layouts.layoutDetails(show.screenId, show.layoutVersionId);
+        var layout = new LinkedHashMap<String, Object>(version);
+        layout.put("seats", occupancy.seats());
+        // Compatibility: screen.seats must also describe this show, never the newer active map.
+        var view = new com.slokam.av.entity.Screen();
+        view.id = screen.id; view.theatreId = screen.theatreId; view.name = screen.name;
+        view.number = screen.number; view.status = screen.status;
+        view.createdAt = screen.createdAt; view.updatedAt = screen.updatedAt;
+        view.layoutVersion = show.layoutVersion; view.activeLayoutVersionId = screen.activeLayoutVersionId;
+        view.rows = occupancy.seats().stream().mapToInt(ShowSeatService.SeatState::rowNumber).max().orElse(0);
+        view.seatsPerRow = occupancy.seats().stream().mapToInt(ShowSeatService.SeatState::columnNumber).max().orElse(0);
+        view.seats = occupancy.seats().stream().map(x -> {
+            var seat = new com.slokam.av.entity.Seat(); seat.id = x.id(); seat.screen = view;
+            seat.label = x.label(); seat.rowNumber = x.rowNumber(); seat.columnNumber = x.columnNumber();
+            seat.category = x.category(); seat.color = x.color(); seat.disabled = x.disabled(); return seat;
+        }).toList();
+        return Map.of("show", show, "screen", view, "layout", layout,
+                "bookedSeatIds", occupancy.unavailableSeatIds(), "reservedSeatIds", occupancy.reservedSeatIds(),
+                "heldSeatIds", occupancy.heldSeatIds(), "availableSeatCount", occupancy.availableSeatCount());
     }
+
+    public long availableSeatCount(String id) { return showSeats.occupancy(get(id)).availableSeatCount(); }
 
     @Transactional
     public Show create(Show s) {
         log.debug("Processing ShowService.create");
+        layouts.lockScreen(s.screenId);
         validateRelations(s);
         validateOverlap(null, s);
         var active = layouts.activeLayout(s.screenId);
