@@ -51,7 +51,7 @@ auth:
 app:
   cors-origins: "*"
   admin:
-    mobile: ${APP_ADMIN_MOBILE:+918881178888}
+    mobile: ""
     email: "audienceverdict@gmail.com"
 
 server:
