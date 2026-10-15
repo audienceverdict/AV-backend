@@ -68,3 +68,12 @@ server:
 booking:
   seat-hold-minutes: 5
   waiting-list-offer-minutes: 5
+
+whatsapp:
+  phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:1439956405860947}
+  access-token: ${WHATSAPP_ACCESS_TOKEN:EAAXlpqDSZAAEBSuTazBS2OZBIp9UcQB9NTbIUo8CzPGUDc1ifEqEKh9s7RWwBLCSuCjrlQ6vfTANbothauxWwM04MfFd2LEnJRZCg7A6XQ4AKWq2Ng4LnrCtDwZCYKVdSUF3v2qRpCSSA0WoTTsxwlg1rldzmqVTNdkY3f7u8iuIhYjw6a9IMj4b6foAZBNrXphtZBZCnz8fTPIWebCpiFZA2RrBboh3CVRZCh7mZC}
+  api-version: ${WHATSAPP_API_VERSION:v25.0}
+  template-name: ${WHATSAPP_OTP_TEMPLATE:otp}
+  template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
+
+  
