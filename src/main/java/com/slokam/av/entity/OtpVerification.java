@@ -17,6 +17,9 @@ public class OtpVerification {
     @Column(nullable = false, length = 16)
     public String channel = "EMAIL";
 
+    @Column(length = 4096)
+    public String registrationBinding;
+
     @Column(nullable = false)
     public String otpHash;
 

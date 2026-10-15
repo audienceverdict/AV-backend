@@ -28,7 +28,7 @@ public class OpenApiConfig {
                 .title("AV Movie Booking API").version("1.0.0")
                 .description("Movie catalog, people, theatres, versioned seating layouts, shows, bookings, payments, reviews, waiting lists and notifications. "
                         + "IDs are opaque strings. HTTP/HTTPS URLs are required for catalog media and social links. "
-                        + "Sign in through email OTP request and verify; complete register when registrationRequired is true. "
+                        + "Sign in using email OTP at /api/v1/auth/otp/request and /verify. Registration verifies WhatsApp and email through /registration endpoints before /register. "
                         + "Paste accessToken into Authorize (without the Bearer prefix). ADMIN operations require an enabled ADMIN account. "
                         + "Pagination is zero-based (page=0, size=20). Dates use YYYY-MM-DD and timestamps use ISO-8601. "
                         + "Response codes reflect the controllers: creation and deletion return 200 unless explicitly documented as 201/204. "
@@ -48,7 +48,7 @@ public class OpenApiConfig {
             boolean authenticated = admin || path.equals("/api/v1/auth/me")
                     || path.startsWith("/api/v1/bookings") || path.startsWith("/api/v1/waiting-list")
                     || path.equals("/api/v1/notifications")
-                    || (!get && !path.startsWith("/api/v1/auth/email-otp/"));
+                    || (!get && !path.startsWith("/api/v1/auth/email-otp/") && !path.startsWith("/api/v1/auth/otp/"));
             operation.setSecurity(authenticated ? List.of(new SecurityRequirement().addList("bearerAuth")) : List.of());
             operation.addExtension("x-required-role", admin ? "ADMIN" : authenticated ? "AUTHENTICATED" : "PUBLIC");
             operation.setDescription(operation.getDescription() + " Access: "
@@ -60,7 +60,7 @@ public class OpenApiConfig {
             responses.putIfAbsent("404", error("Referenced resource not found, when applicable."));
             responses.putIfAbsent("409", error("Business conflict, duplicate data or unavailable seats, when applicable."));
             responses.putIfAbsent("500", error("Unexpected server failure."));
-            if (path.startsWith("/api/v1/auth/email-otp/")) {
+            if (path.startsWith("/api/v1/auth/email-otp/") || path.startsWith("/api/v1/auth/otp/")) {
                 responses.put("429", error("OTP request or verification rate limit exceeded, when applicable."));
                 responses.put("500", new ApiResponse().description("OTP processing unavailable.")
                         .content(new Content().addMediaType("application/json", new MediaType()

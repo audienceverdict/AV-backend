@@ -30,7 +30,7 @@ public class AuthController {
         this.service = service;
     }
 
-    @io.swagger.v3.oas.annotations.Operation(summary = "Request an email OTP", description = "Request an email OTP. Returns expiry and resend timing; email delivery depends on the configured SMTP provider.")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Legacy OTP endpoint (disabled)", description = "Returns 409 OTP_CHANNEL_DISABLED. Use /api/v1/auth/otp login or registration endpoints.", deprecated = true)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.OtpResponse.class)))
     @PostMapping("/email-otp/request")
     public ResponseEntity<?> requestEmail(@Valid @RequestBody EmailOtpRequest r) {
@@ -47,7 +47,7 @@ public class AuthController {
         }
     }
 
-    @io.swagger.v3.oas.annotations.Operation(summary = "Verify the email OTP", description = "Verify the email OTP. Existing complete accounts receive a Bearer access token; registrationRequired=true means registration must be completed.")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Legacy OTP endpoint (disabled)", description = "Returns 409 OTP_CHANNEL_DISABLED. Use /api/v1/auth/otp login or registration endpoints.", deprecated = true)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.EmailOtpResult.class)))
     @PostMapping("/email-otp/verify")
     public ResponseEntity<?> verifyEmail(@Valid @RequestBody EmailOtpVerifyRequest r) {
@@ -62,7 +62,7 @@ public class AuthController {
         }
     }
 
-    @io.swagger.v3.oas.annotations.Operation(summary = "Complete registration using the verified email OTP, profile and mobile details, then receive a Bearer access token", description = "Complete registration using the verified email OTP, profile and mobile details, then receive a Bearer access token.")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Legacy OTP endpoint (disabled)", description = "Returns 409 OTP_CHANNEL_DISABLED. Use /api/v1/auth/otp login or registration endpoints.", deprecated = true)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successful request", content = @io.swagger.v3.oas.annotations.media.Content(schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = com.slokam.av.dto.EmailOtpResult.class)))
     @PostMapping("/email-otp/register")
     public ResponseEntity<?> registerEmail(@Valid @RequestBody EmailOtpRegistrationRequest r) {

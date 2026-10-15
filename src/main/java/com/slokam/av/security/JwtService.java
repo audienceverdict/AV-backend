@@ -55,7 +55,26 @@ public class JwtService {
                 .getTokenValue();
     }
 
+    public String registrationProof(String destination, String channel, Long challenge) {
+        Instant now = Instant.now();
+        var claims = JwtClaimsSet.builder().issuer("audience-verdict")
+                .subject(destination).claim("purpose", "otp-registration")
+                .claim("channel", channel).claim("challenge", challenge)
+                .issuedAt(now).expiresAt(now.plusSeconds(600)).build();
+        return encoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+    }
+
+    public Jwt validateRegistration(String token) {
+        Jwt jwt = decoder.decode(token);
+        if (!"otp-registration".equals(jwt.getClaimAsString("purpose")))
+            throw new BadJwtException("Invalid registration proof");
+        return jwt;
+    }
+
     public Jwt validate(String token) {
-        return decoder.decode(token);
+        Jwt jwt = decoder.decode(token);
+        if (jwt.hasClaim("purpose")) throw new BadJwtException("Access token required");
+        return jwt;
     }
 }

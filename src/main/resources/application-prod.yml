@@ -42,7 +42,8 @@ auth:
     country-code: 91
     national-length: 10
   otp:
-    expiration-seconds: 300
+    channel: ${AUTH_OTP_CHANNEL:WHATSAPP}
+    expiration-seconds: ${AUTH_OTP_EXPIRATION_SECONDS:600}
     resend-cooldown-seconds: 30
     max-attempts: 5
     max-requests-per-hour: 10
@@ -50,7 +51,7 @@ auth:
 app:
   cors-origins: "*"
   admin:
-    mobile: ""
+    mobile: ${APP_ADMIN_MOBILE:+918881178888}
     email: "audienceverdict@gmail.com"
 
 server:

@@ -37,7 +37,14 @@ public class SecurityConfig {
                                                 HttpMethod.POST,
                                                 "/api/v1/auth/email-otp/request",
                                                 "/api/v1/auth/email-otp/verify",
-                                                "/api/v1/auth/email-otp/register")
+                                                "/api/v1/auth/email-otp/register",
+                                                "/api/v1/auth/otp/request",
+                                                "/api/v1/auth/otp/verify",
+                                                "/api/v1/auth/otp/register",
+                                                "/api/v1/auth/otp/registration/request",
+                                                "/api/v1/auth/otp/registration/verify",
+                                                "/api/v1/auth/otp/registration/email/request",
+                                                "/api/v1/auth/otp/registration/email/verify")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
                                         .authenticated()

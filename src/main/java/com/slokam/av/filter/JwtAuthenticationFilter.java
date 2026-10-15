@@ -36,7 +36,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || ("POST".equals(r.getMethod())
                         && (r.getRequestURI().equals("/api/v1/auth/email-otp/request")
                                 || r.getRequestURI().equals("/api/v1/auth/email-otp/verify")
-                                || r.getRequestURI().equals("/api/v1/auth/email-otp/register")));
+                                || r.getRequestURI().equals("/api/v1/auth/email-otp/register")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/request")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/verify")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/register")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/registration/request")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/registration/verify")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/registration/email/request")
+                                || r.getRequestURI().equals("/api/v1/auth/otp/registration/email/verify")));
     }
 
     protected void doFilterInternal(

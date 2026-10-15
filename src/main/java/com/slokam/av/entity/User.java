@@ -37,6 +37,10 @@ public class User {
     @Column(nullable = false)
     public Instant updatedAt = Instant.now();
 
+    public Instant mobileVerifiedAt;
+
+    public Instant emailVerifiedAt;
+
     @PreUpdate
     void updateTime() {
         updatedAt = Instant.now();

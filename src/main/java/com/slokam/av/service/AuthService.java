@@ -28,6 +28,7 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final UserRepository users;
     private final OtpService otp;
+    private final com.slokam.av.config.OtpChannelConfig channel;
     private final MobileNormalizer mobile;
     private final JwtService jwt;
     private final String adminEmail;
@@ -35,11 +36,13 @@ public class AuthService {
     public AuthService(
             UserRepository users,
             OtpService otp,
+            com.slokam.av.config.OtpChannelConfig channel,
             MobileNormalizer mobile,
             JwtService jwt,
             @Value("${app.admin.email:}") String adminEmail) {
         this.users = users;
         this.otp = otp;
+        this.channel = channel;
         this.mobile = mobile;
         this.jwt = jwt;
         this.adminEmail = normalize(adminEmail);
@@ -63,6 +66,7 @@ public class AuthService {
     }
 
     public OtpResponse requestEmail(EmailOtpRequest r) {
+        channel.requireEmail();
         log.debug("Processing AuthService.requestEmail");
         String address = normalize(r.email());
         requireAuthorizedAdmin(address);
@@ -71,6 +75,7 @@ public class AuthService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public EmailOtpResult verifyEmail(EmailOtpVerifyRequest r) {
+        channel.requireEmail();
         log.debug("Processing AuthService.verifyEmail");
         String address = normalize(r.email());
         User existing = account(address);
@@ -101,6 +106,7 @@ public class AuthService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public EmailOtpResult registerEmail(EmailOtpRegistrationRequest r) {
+        channel.requireEmail();
         log.debug("Processing AuthService.registerEmail");
         String address = normalize(r.email());
         if (!adminEmail.isBlank() && adminEmail.equals(address))

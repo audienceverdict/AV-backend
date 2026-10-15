@@ -31,12 +31,14 @@ class OpenApiIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class})
     @Import({OpenApiConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class,
-            AuthController.class, AdminUserController.class, MovieController.class,
+            AuthController.class, OtpController.class, AdminUserController.class, MovieController.class,
             MovieCreditController.class, MovieMediaController.class, PeopleController.class,
             TheatreController.class, ShowController.class, BookingController.class,
             PaymentController.class, ReviewController.class, WaitingListController.class,
             NotificationController.class})
     static class Config {}
+    @MockitoBean ConfiguredOtpService configuredOtp;
+    @MockitoBean OtpChannelConfig otpConfig;
     @MockitoBean AuthService auth;
     @MockitoBean MovieService movies;
     @MockitoBean MovieCreditService credits;
@@ -69,7 +71,7 @@ class OpenApiIntegrationTest {
             assertTrue(value.path("responses").has("400"), path.getKey());
             operations[0]++;
         }));
-        assertEquals(82, operations[0]);
+        assertEquals(90, operations[0]);
         assertEquals(0, paths.path("/api/v1/movies").path("get").path("security").size());
         assertEquals("ADMIN", paths.path("/api/v1/movies").path("post").path("x-required-role").asText());
         assertEquals("AUTHENTICATED", paths.path("/api/v1/bookings/me").path("get").path("x-required-role").asText());
@@ -79,6 +81,16 @@ class OpenApiIntegrationTest {
         assertTrue(api.path("components").path("schemas").has("EmailOtpResult"));
         assertTrue(paths.path("/api/v1/movies/{movieId}/media").path("post").path("responses").has("201"));
         assertTrue(paths.path("/api/v1/movies/{movieId}/media/{mediaId}").path("delete").path("responses").has("204"));
+    }
+
+    @Test void registrationEndpointsArePublicEvenWithStaleAuthorization() throws Exception {
+        String[] paths={"registration/request","registration/verify","registration/email/request","registration/email/verify"};
+        String[] bodies={"{\"destination\":\"9000000001\"}",
+            "{\"destination\":\"9000000001\",\"otp\":\"123456\"}",
+            "{\"registrationToken\":\"proof\",\"email\":\"a@example.test\"}",
+            "{\"registrationToken\":\"proof\",\"email\":\"a@example.test\",\"otp\":\"123456\"}"};
+        for(int i=0;i<paths.length;i++) mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/auth/otp/"+paths[i])
+            .header("Authorization","Bearer expired").contentType("application/json").content(bodies[i])).andExpect(status().isOk());
     }
 
     @Test void swaggerUiAndConfigurationArePublicAndBusinessApiStaysProtected() throws Exception {

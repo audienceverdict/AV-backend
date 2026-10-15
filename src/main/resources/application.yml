@@ -17,3 +17,10 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true
+
+whatsapp:
+  phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:1439956405860947}
+  access-token: ${WHATSAPP_ACCESS_TOKEN:}
+  api-version: ${WHATSAPP_API_VERSION:v25.0}
+  template-name: ${WHATSAPP_OTP_TEMPLATE:otp}
+  template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}

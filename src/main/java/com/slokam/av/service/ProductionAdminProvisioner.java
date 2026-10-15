@@ -23,10 +23,15 @@ public class ProductionAdminProvisioner implements ApplicationRunner {
 
     private final UserRepository users;
     private final String adminEmail;
+    private final String adminMobile;
+    private final com.slokam.av.config.OtpChannelConfig channel;
 
     public ProductionAdminProvisioner(
-            UserRepository users, @Value("${app.admin.email:}") String adminEmail) {
+            UserRepository users, com.slokam.av.config.OtpChannelConfig channel, @Value("${app.admin.email:}") String adminEmail,
+            @Value("${app.admin.mobile:}") String adminMobile, com.slokam.av.util.MobileNormalizer normalizer) {
         this.users = users;
+        this.adminMobile = adminMobile.isBlank() ? "" : normalizer.normalize(adminMobile);
+        this.channel = channel;
         this.adminEmail = adminEmail == null ? "" : adminEmail.trim().toLowerCase(Locale.ROOT);
     }
 
@@ -41,6 +46,18 @@ public class ProductionAdminProvisioner implements ApplicationRunner {
         }
 
         var existing = users.findByEmailIgnoreCase(adminEmail);
+        var byMobile=adminMobile.isBlank() ? java.util.Optional.<User>empty() : users.findByMobile(adminMobile);
+        if (byMobile.isPresent()) {
+            User mobileUser=byMobile.get();
+            if (mobileUser.role != Role.ADMIN || (existing.isPresent() && !existing.get().id.equals(mobileUser.id))
+                    || (mobileUser.email != null && !mobileUser.email.isBlank() && !mobileUser.email.equalsIgnoreCase(adminEmail)))
+                throw new IllegalStateException("Configured administrator contacts conflict; resolve the existing account before startup");
+            if (existing.isEmpty()) {
+                mobileUser.email=adminEmail;
+                users.saveAndFlush(mobileUser);
+                existing=java.util.Optional.of(mobileUser);
+            }
+        }
         User user;
         boolean changed;
         if (existing.isPresent()) {
