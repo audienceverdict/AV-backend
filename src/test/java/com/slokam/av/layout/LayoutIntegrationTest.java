@@ -31,7 +31,7 @@ class LayoutIntegrationTest {
     @Configuration(proxyBeanMethods=false) @EnableAutoConfiguration
     @EntityScan("com.slokam.av.entity") @EnableJpaRepositories("com.slokam.av.repository")
     @Import({TheatreService.class, ShowService.class, ShowSeatService.class, BookingService.class,
-        LayoutCompatibilityService.class, WaitingListService.class})
+        LayoutCompatibilityService.class, WaitingListService.class, TicketQrService.class})
     static class Config {}
     @MockitoBean NotificationService notifications;
     @Autowired TheatreService theatres;
@@ -47,6 +47,7 @@ class LayoutIntegrationTest {
     @Autowired ShowRepository shows;
     @Autowired SeatHoldRepository holds;
     @Autowired BookingRepository bookings;
+    @Autowired TicketScanAuditRepository ticketScanAudits;
     @Autowired ObjectMapper json;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
@@ -345,6 +346,38 @@ class LayoutIntegrationTest {
         assertEquals(59,showService.availableSeatCount(show.id));
         bookingService.cancel(booking.id,fixture.principal(),null);
         assertEquals(60,showService.availableSeatCount(show.id));assertEquals(60,layout(active.id).size());
+    }
+
+    @Test void verifiesWholeBookingOnceAndRejectsRepeatedScan() {
+        var f = fixture();
+        var show = show(f, 10);
+        var seatIds = layout(show.layoutVersionId).stream()
+                .filter(seat -> !seat.disabled)
+                .limit(2)
+                .map(LayoutSeat::bookingSeatId)
+                .toArray(String[]::new);
+        var booking = bookingService.create(f.principal(), bookingRequest(show, seatIds));
+        var payload = "AVT1:" + booking.ticketCode;
+
+        assertEquals(
+                "WRONG_SHOW",
+                bookingService.verifyTicket(payload, UUID.randomUUID().toString(), "admin-id")
+                        .result());
+        var admitted = bookingService.verifyTicket(payload, show.id, "admin-id");
+        assertTrue(admitted.valid());
+        assertEquals("ADMITTED", admitted.result());
+        assertEquals(booking.id, admitted.bookingId());
+        assertEquals(2, admitted.ticketCount());
+        assertEquals(2, admitted.seatIds().size());
+        assertEquals(
+                "ALREADY_USED",
+                bookingService.verifyTicket(payload, show.id, "admin-id").result());
+        var scanResults =
+                ticketScanAudits.findByBookingIdOrderByScannedAtDesc(booking.id).stream()
+                        .map(audit -> audit.result)
+                        .toList();
+        assertEquals(3, scanResults.size());
+        assertTrue(scanResults.containsAll(List.of("ALREADY_USED", "ADMITTED", "WRONG_SHOW")));
     }
 
     @Test void initializesNullSeatsAndAlphabeticLabelsWithoutChangingExplicitSeats() {

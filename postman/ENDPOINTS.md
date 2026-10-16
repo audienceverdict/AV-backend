@@ -76,11 +76,13 @@ Import the collection and environment. Follow [README.md](README.md) for setup a
 | 70 | Create paid booking | POST | `{{baseUrl}}/api/v1/bookings` | userToken |
 | 71 | Get my bookings | GET | `{{baseUrl}}/api/v1/bookings/me` | userToken |
 | 72 | Get my booking | GET | `{{baseUrl}}/api/v1/bookings/{{bookingId}}` | userToken |
+| 72a | Get my booking QR image | GET | `{{baseUrl}}/api/v1/bookings/{{bookingId}}/ticket-qr` | userToken |
 | 73 | Get booking payment | GET | `{{baseUrl}}/api/v1/payments/booking/{{bookingId}}` | userToken |
 | 74 | Verify payment | POST | `{{baseUrl}}/api/v1/payments/booking/{{bookingId}}/verify` | userToken |
 | 75 | Admin list bookings | GET | `{{baseUrl}}/api/v1/bookings/admin` | adminToken |
 | 76 | Admin confirm booking | POST | `{{baseUrl}}/api/v1/bookings/admin/{{bookingId}}/confirm` | adminToken |
 | 77 | Mark attended | POST | `{{baseUrl}}/api/v1/bookings/admin/{{bookingId}}/attendance?attended=true` | adminToken |
+| 77a | Verify booking QR and check in | POST | `{{baseUrl}}/api/v1/bookings/admin/ticket-scan` | adminToken |
 | 78 | Create review | POST | `{{baseUrl}}/api/v1/reviews` | userToken |
 | 79 | Update my review | PUT | `{{baseUrl}}/api/v1/reviews/{{reviewId}}` | userToken |
 | 80 | Moderate and highlight review | POST | `{{baseUrl}}/api/v1/reviews/admin/{{reviewId}}/moderate?status=APPROVED&highlighted=true` | adminToken |
@@ -90,6 +92,8 @@ Import the collection and environment. Follow [README.md](README.md) for setup a
 | 84 | Get my notifications | GET | `{{baseUrl}}/api/v1/notifications` | userToken |
 | 85 | Join sold-out seeded show waiting list | POST | `{{baseUrl}}/api/v1/waiting-list` | userToken |
 | 86 | List my waiting entries | GET | `{{baseUrl}}/api/v1/waiting-list` | userToken |
+
+Ticket scan requests use JSON such as `{"qrPayload":"AVT1:<ticketCode>","showId":"<showId>"}`.
 | 87 | Admin list waiting entries | GET | `{{baseUrl}}/api/v1/waiting-list/admin` | adminToken |
 | 88 | Release seeded booking seats to offer earlier entry | POST | `{{baseUrl}}/api/v1/bookings/admin/{{waitingBookingId}}/cancel` | adminToken |
 | 89 | Create second booking for offer trigger | POST | `{{baseUrl}}/api/v1/bookings` | userToken |

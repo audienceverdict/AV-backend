@@ -5,6 +5,7 @@ import com.slokam.av.entity.BookingStatus;
 
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 import java.util.*;
 
@@ -16,6 +17,9 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     List<Booking> findByShowIdIn(Collection<String> showIds);
 
     long countByShowId(String showId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Booking> findByTicketCode(String ticketCode);
 
     @Query(
             "select b from Booking b where b.showId=:showId and b.mobile=:mobile and b.status in"

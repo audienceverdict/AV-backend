@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.slokam.av.dto.CreateBookingRequest;
 import com.slokam.av.dto.SeatHoldRequest;
+import com.slokam.av.dto.TicketVerificationResponse;
 import com.slokam.av.entity.Booking;
 import com.slokam.av.entity.BookingStatus;
 import com.slokam.av.entity.ConfirmationStatus;
@@ -12,6 +13,7 @@ import com.slokam.av.entity.PaymentStatus;
 import com.slokam.av.entity.SeatHold;
 import com.slokam.av.entity.SeatHoldStatus;
 import com.slokam.av.entity.ShowStatus;
+import com.slokam.av.entity.TicketScanAudit;
 import com.slokam.av.entity.TicketType;
 import com.slokam.av.entity.User;
 import com.slokam.av.entity.WaitingListStatus;
@@ -23,9 +25,9 @@ import com.slokam.av.repository.ScreenRepository;
 import com.slokam.av.repository.SeatHoldRepository;
 import com.slokam.av.repository.ShowRepository;
 import com.slokam.av.repository.TheatreRepository;
+import com.slokam.av.repository.TicketScanAuditRepository;
 import com.slokam.av.repository.UserRepository;
 import com.slokam.av.repository.WaitingListRepository;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -33,6 +35,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.Principal;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
 
@@ -50,6 +54,8 @@ public class BookingService {
     private final SeatHoldRepository holds;
     private final WaitingListRepository waiting;
     private final ShowSeatService showSeats;
+    private final TicketQrService ticketQr;
+    private final TicketScanAuditRepository ticketScans;
 
     @Value("${booking.seat-hold-minutes:5}")
     private long holdMinutes;
@@ -67,7 +73,10 @@ public class BookingService {
             PaymentRepository payments,
             NotificationService notifications,
             SeatHoldRepository holds,
-            WaitingListRepository waiting, ShowSeatService showSeats) {
+            WaitingListRepository waiting,
+            ShowSeatService showSeats,
+            TicketQrService ticketQr,
+            TicketScanAuditRepository ticketScans) {
         this.bookings = bookings;
         this.shows = shows;
         this.movies = movies;
@@ -79,6 +88,8 @@ public class BookingService {
         this.holds = holds;
         this.waiting = waiting;
         this.showSeats = showSeats;
+        this.ticketQr = ticketQr;
+        this.ticketScans = ticketScans;
     }
 
     @Transactional
@@ -177,6 +188,70 @@ public class BookingService {
         if (!b.userId.equals(p.getName()))
             throw new ApiException(403, "FORBIDDEN", "Access denied");
         return b;
+    }
+
+    @Transactional
+    public byte[] ticketQr(String id, Principal p) {
+        var booking = get(id, p);
+        if (booking.ticketCode == null || !booking.ticketCode.matches("[A-F0-9]{32}")) {
+            booking.ticketCode = UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+            bookings.flush();
+        }
+        return ticketQr.image(booking.ticketCode);
+    }
+
+    @Transactional
+    public TicketVerificationResponse verifyTicket(String qrPayload, String showId, String staffId) {
+        if (qrPayload == null || !qrPayload.matches("AVT1:[A-F0-9]{32}"))
+            return rejectScan(qrPayload, null, staffId, "INVALID_QR");
+        String ticketCode = qrPayload.substring("AVT1:".length());
+        var booking = bookings.findByTicketCode(ticketCode).orElse(null);
+        if (booking == null) return rejectScan(qrPayload, null, staffId, "INVALID_QR");
+        if (!booking.showId.equals(showId))
+            return rejectScan(qrPayload, booking.id, staffId, "WRONG_SHOW");
+        if (booking.attended)
+            return rejectScan(qrPayload, booking.id, staffId, "ALREADY_USED");
+        if (booking.status == BookingStatus.CANCELLED || booking.ticketCount == 0 || booking.seatIds.isEmpty()) {
+            return rejectScan(qrPayload, booking.id, staffId, "CANCELLED");
+        }
+        if (booking.status != BookingStatus.CONFIRMED
+                || booking.confirmationStatus == ConfirmationStatus.PENDING) {
+            return rejectScan(qrPayload, booking.id, staffId, "BOOKING_NOT_CONFIRMED");
+        }
+        var payment = payments.findByBookingId(booking.id).orElse(null);
+        if (payment == null
+                || (payment.status != PaymentStatus.NOT_REQUIRED
+                        && payment.status != PaymentStatus.VERIFIED)) {
+            return rejectScan(qrPayload, booking.id, staffId, "PAYMENT_NOT_VERIFIED");
+        }
+        booking.attended = true;
+        recordScan(qrPayload, booking.id, staffId, "ADMITTED");
+        log.info("Ticket checked in bookingId={} staffId={}", booking.id, staffId);
+        return TicketVerificationResponse.admitted(booking);
+    }
+
+    private TicketVerificationResponse rejectScan(
+            String qrPayload, String bookingId, String staffId, String result) {
+        recordScan(qrPayload, bookingId, staffId, result);
+        return TicketVerificationResponse.rejected(result);
+    }
+
+    private void recordScan(String qrPayload, String bookingId, String staffId, String result) {
+        var audit = new TicketScanAudit();
+        audit.bookingId = bookingId;
+        audit.staffId = staffId;
+        audit.credentialHash = sha256(qrPayload == null ? "" : qrPayload);
+        audit.result = result;
+        ticketScans.save(audit);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return java.util.HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 
     @Transactional

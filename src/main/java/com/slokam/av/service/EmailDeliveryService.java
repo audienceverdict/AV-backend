@@ -31,9 +31,14 @@ public class EmailDeliveryService {
 
     public void sendHtml(String to, String subject, String plain, String html, String poster,
             Runnable success, Runnable failure) {
+        sendHtml(to, subject, plain, html, poster, null, success, failure);
+    }
+
+    public void sendHtml(String to, String subject, String plain, String html, String poster,
+            String inlineQrDataUri, Runnable success, Runnable failure) {
         Runnable delivery = () -> {
             try {
-                provider.sendHtml(to, subject, plain, html, poster);
+                provider.sendHtml(to, subject, plain, html, poster, inlineQrDataUri);
             } catch (RuntimeException e) {
                 log.warn("Background email delivery failed: {}", e.getClass().getSimpleName());
                 callback(failure);

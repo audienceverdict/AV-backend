@@ -71,10 +71,12 @@ class OpenApiIntegrationTest {
             assertTrue(value.path("responses").has("400"), path.getKey());
             operations[0]++;
         }));
-        assertEquals(90, operations[0]);
+        assertEquals(92, operations[0]);
         assertEquals(0, paths.path("/api/v1/movies").path("get").path("security").size());
         assertEquals("ADMIN", paths.path("/api/v1/movies").path("post").path("x-required-role").asText());
         assertEquals("AUTHENTICATED", paths.path("/api/v1/bookings/me").path("get").path("x-required-role").asText());
+        assertEquals("AUTHENTICATED", paths.path("/api/v1/bookings/{id}/ticket-qr").path("get").path("x-required-role").asText());
+        assertEquals("ADMIN", paths.path("/api/v1/bookings/admin/ticket-scan").path("post").path("x-required-role").asText());
         assertEquals("PUBLIC", paths.path("/api/v1/payments/booking/{bookingId}").path("get").path("x-required-role").asText());
         assertTrue(api.path("components").path("schemas").has("ApiErrors"));
         assertTrue(api.path("components").path("schemas").has("MovieRequest"));

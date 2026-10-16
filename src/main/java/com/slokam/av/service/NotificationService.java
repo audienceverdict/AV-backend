@@ -32,6 +32,7 @@ public class NotificationService {
     private final MovieRepository movies;
     private final EmailDeliveryService email;
     private final BookingSeatLabels seatLabels;
+    private final TicketQrService ticketQr;
 
     public NotificationService(
             NotificationRepository notifications,
@@ -39,7 +40,7 @@ public class NotificationService {
             BookingRepository bookings,
             ShowRepository shows,
             MovieRepository movies,
-            EmailDeliveryService email, BookingSeatLabels seatLabels) {
+            EmailDeliveryService email, BookingSeatLabels seatLabels, TicketQrService ticketQr) {
         this.notifications = notifications;
         this.users = users;
         this.bookings = bookings;
@@ -47,6 +48,7 @@ public class NotificationService {
         this.movies = movies;
         this.email = email;
         this.seatLabels = seatLabels;
+        this.ticketQr = ticketQr;
     }
 
     public String record(String userId, String type, String message) {
@@ -69,11 +71,12 @@ public class NotificationService {
                 : booking.status == BookingStatus.CONFIRMED ? "Your ticket for " + booking.movie + " is confirmed"
                 : "Booking update for " + booking.movie;
         var content = BrandedEmailTemplate.ticket(user.name, booking, posterUrl,
-                seatLabels.resolve(booking, booking.seatIds), seatLabels.resolve(booking, cancelledIds));
+                seatLabels.resolve(booking, booking.seatIds), seatLabels.resolve(booking, cancelledIds),
+                ticketQr.imageDataUri(booking.ticketCode));
         String userId = user.id;
         String type = "BOOKING_" + booking.status.name();
         email.sendHtml(user.email, subject, content.plainText(), content.html(),
-                content.inlinePosterDataUri(),
+                content.inlinePosterDataUri(), content.inlineQrDataUri(),
                 () -> record(userId, type, "Email sent: " + subject),
                 () -> record(userId, "BOOKING_EMAIL_DELIVERY_PENDING",
                         "Ticket details are saved in My Bookings. Email delivery can be retried."));

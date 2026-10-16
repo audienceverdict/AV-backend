@@ -7,4 +7,14 @@ public interface EmailProvider {
             String to, String subject, String plainText, String html, String inlinePosterDataUri) {
         send(to, subject, plainText);
     }
+
+    default void sendHtml(
+            String to,
+            String subject,
+            String plainText,
+            String html,
+            String inlinePosterDataUri,
+            String inlineQrDataUri) {
+        sendHtml(to, subject, plainText, html, inlinePosterDataUri);
+    }
 }

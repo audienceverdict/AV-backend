@@ -4,6 +4,7 @@ import com.slokam.av.dto.AdminCancellationRequest;
 import com.slokam.av.dto.CancelBookingRequest;
 import com.slokam.av.dto.CreateBookingRequest;
 import com.slokam.av.dto.SeatHoldRequest;
+import com.slokam.av.dto.VerifyTicketRequest;
 import com.slokam.av.entity.Booking;
 import com.slokam.av.entity.SeatHold;
 import com.slokam.av.service.BookingService;
@@ -55,6 +56,13 @@ public class BookingController {
         return service.get(id, p);
     }
 
+    @io.swagger.v3.oas.annotations.Operation(
+            summary = "Get the authenticated owner's booking QR code as a PNG image")
+    @GetMapping(value = "/{id}/ticket-qr", produces = "image/png")
+    public byte[] ticketQr(@PathVariable String id, Principal p) {
+        return service.ticketQr(id, p);
+    }
+
     @io.swagger.v3.oas.annotations.Operation(summary = "Create a booking for selected seats and ticket type", description = "Create a booking for selected seats and ticket type. Availability and seat holds are checked.")
     @PostMapping
     public Booking create(Principal p, @Valid @RequestBody CreateBookingRequest r) {
@@ -87,5 +95,13 @@ public class BookingController {
     @PostMapping("/admin/{id}/attendance")
     public Booking attended(@PathVariable String id, @RequestParam boolean attended) {
         return service.markAttended(id, attended);
+    }
+
+    @io.swagger.v3.oas.annotations.Operation(
+            summary = "Verify a booking QR code for a show and check in the full booking")
+    @PostMapping("/admin/ticket-scan")
+    public com.slokam.av.dto.TicketVerificationResponse verifyTicket(
+            @Valid @RequestBody VerifyTicketRequest request, Principal principal) {
+        return service.verifyTicket(request.qrPayload(), request.showId(), principal.getName());
     }
 }

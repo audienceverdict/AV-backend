@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -68,6 +69,17 @@ public class SmtpEmailProvider implements EmailProvider {
     @Override
     public void sendHtml(
             String to, String subject, String plainText, String html, String inlinePosterDataUri) {
+        sendHtml(to, subject, plainText, html, inlinePosterDataUri, null);
+    }
+
+    @Override
+    public void sendHtml(
+            String to,
+            String subject,
+            String plainText,
+            String html,
+            String inlinePosterDataUri,
+            String inlineQrDataUri) {
         if (host.isBlank() && development) {
             log.debug("SMTP delivery skipped: development mode without SMTP host");
             return;
@@ -79,19 +91,14 @@ public class SmtpEmailProvider implements EmailProvider {
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(plainText, html);
-            if (inlinePosterDataUri != null) {
-                Matcher match =
-                        Pattern.compile(
-                                        "(?is)^data:(image/(?:png|jpeg|webp));base64,([a-z0-9+/=\\r"
-                                                + "\\n"
-                                                + "]+)$")
-                                .matcher(inlinePosterDataUri);
-                if (match.matches())
-                    helper.addInline(
-                            "movie-poster",
-                            new ByteArrayResource(Base64.getMimeDecoder().decode(match.group(2))),
-                            match.group(1));
+            if (html.contains("cid:audience-verdict-logo")) {
+                helper.addInline("audience-verdict-logo",
+                        new ClassPathResource("logo/audience-verdict-logo.png"), "image/png");
             }
+            if (inlinePosterDataUri != null) {
+                addInlineImage(helper, "movie-poster", inlinePosterDataUri);
+            }
+            if (inlineQrDataUri != null) addInlineImage(helper, "ticket-qr", inlineQrDataUri);
             mail.send(message);
             log.debug("SMTP delivery accepted by configured mail server");
         } catch (Exception e) {
@@ -105,6 +112,21 @@ public class SmtpEmailProvider implements EmailProvider {
             throw new ApiException(
                     503, "EMAIL_UNAVAILABLE", "Unable to send email. Please try again later.");
         }
+    }
+
+    private static void addInlineImage(
+            MimeMessageHelper helper, String contentId, String dataUri) throws Exception {
+        Matcher match =
+                Pattern.compile(
+                                "(?is)^data:(image/(?:png|jpeg|webp));base64,([a-z0-9+/=\\r"
+                                        + "\\n"
+                                        + "]+)$")
+                        .matcher(dataUri);
+        if (match.matches())
+            helper.addInline(
+                    contentId,
+                    new ByteArrayResource(Base64.getMimeDecoder().decode(match.group(2))),
+                    match.group(1));
     }
 
     private static String safeDetail(Throwable cause) {

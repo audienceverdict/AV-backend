@@ -70,7 +70,7 @@ public class Booking {
 
     @Column(length = 32, unique = true)
     public String ticketCode =
-            "AV-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+            UUID.randomUUID().toString().replace("-", "").toUpperCase();
 
     @Column(nullable = false)
     public Instant createdAt = Instant.now();
