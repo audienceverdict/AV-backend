@@ -28,6 +28,26 @@ public class User {
     @Column(nullable = false, length = 20)
     public Role role = Role.USER;
 
+    // The legacy primary role remains authoritative for existing clients.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "role"}))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 32)
+    public java.util.Set<Role> additionalRoles = new java.util.HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_verifier_shows", joinColumns = @JoinColumn(name = "user_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "show_id"}))
+    @Column(name = "show_id", nullable = false, length = 36)
+    public java.util.Set<String> verifierShowIds = new java.util.HashSet<>();
+
+    public java.util.Set<Role> effectiveRoles() {
+        var roles = java.util.EnumSet.of(role);
+        roles.addAll(additionalRoles);
+        return java.util.Collections.unmodifiableSet(roles);
+    }
+
     @Column(nullable = false)
     public boolean enabled = true;
 

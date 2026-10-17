@@ -107,3 +107,56 @@ Ticket scan requests use JSON such as `{"qrPayload":"AVT1:<ticketCode>","showId"
 | 97 | Delete screen | DELETE | `{{baseUrl}}/api/v1/theatres/screens/{{screenId}}` | adminToken |
 | 98 | Delete theatre | DELETE | `{{baseUrl}}/api/v1/theatres/{{theatreId}}` | adminToken |
 | 99 | Delete movie | DELETE | `{{baseUrl}}/api/v1/movies/{{movieId}}` | adminToken |
+
+### Multiple roles and QR verifiers
+
+Existing `role` values (`USER` for Audience, `ADMIN` for Admin) and existing role updates are unchanged.
+User responses and access JWTs additionally contain `roles`, the union of the primary role and additional staff roles.
+The server reloads permissions from the database on each request; old tokens still work and revocations apply on the next request.
+
+Admin-only: `PUT /api/v1/admin/users/{id}/additional-roles` replaces all additional roles and verifier assignments, preserving the primary role:
+
+```json
+{
+  "roles": ["VERIFIER"],
+  "verifierShowIds": ["existing-show-id"]
+}
+```
+
+Use empty arrays to revoke all additional roles and assignments. Allowed additional roles: `VERIFIER`, `THEATER_MANAGER`, `MOVIE_MAKER`.
+The latter two are reserved for future workflows and add no permissions. `USER` and `ADMIN` cannot be assigned through this new API.
+Assignment changes are recorded in `role_assignment_audits`.
+Admin-only: `GET /api/v1/admin/users/{id}/verifier-shows` returns assigned show IDs.
+
+`POST /api/v1/bookings/admin/ticket-scan` now accepts Admin or Verifier. Verifiers must be assigned to the requested show;
+unassigned verifiers receive 403 before any scan or check-in occurs. Admin scanning remains unrestricted.
+Verifiers retain normal Audience capabilities but cannot use other admin endpoints.
+OTP login, the configured admin email policy, and existing primary-role APIs are unchanged.
+V4 adds tables without changing existing user rows. Flyway-enabled deployments apply it automatically;
+profiles using Hibernate `ddl-auto: update` with Flyway disabled create the mapped tables on startup.
+
+### Logged-in verifier assigned shows
+
+`GET /api/v1/verifier/shows` requires the verifier's own `Authorization: Bearer <accessToken>`.
+Returns an array of full Show objects assigned to the authenticated account, ordered by date,
+start time and ID. Cancelled shows are included with their status. No assignments returns `[]`.
+Assignments are read from the database on every request; no new login is needed after changes.
+No user ID or admin credentials are required. Unauthenticated requests return 401;
+non-verifiers (including admins without VERIFIER) receive 403. Disabled accounts cannot authenticate (401).
+Use the selected show's `id` as `showId` for `POST /api/v1/bookings/admin/ticket-scan`.
+
+### Ticket scan history (admin only)
+
+`GET /api/v1/admin/ticket-scans` with the admin bearer token returns a paginated history,
+newest first. Optional filters can be combined: `verifierId` (who scanned), `customerId`
+(ticket owner), `showId`, `theatreId`. Pagination: `page=0&size=20`, maximum size 100.
+Example: `/api/v1/admin/ticket-scans?showId=SHOW_ID&verifierId=USER_ID&page=0&size=20`.
+Response `content` items contain `id`, `bookingId`, `verifierId`, `customerId`, `showId`,
+`theatreId`, `result`, `scannedAt`; page metadata includes `totalElements` and `totalPages`.
+Unknown filters return an empty page. Raw QR values and credential hashes are not exposed.
+Rejected scans are included, but attempts blocked by role/show authorization are not logged
+by the existing scanner. Invalid/unidentified QR scans have null booking/customer/show/theatre
+context and appear in unfiltered or verifier-filtered history. Show/theatre filters refer to
+the ticket's booked show, not the attempted scan location (which existing audits do not store).
+Theatre is resolved from the current Show record; missing records produce null context.
+No scan behavior or existing endpoints are changed.

@@ -31,12 +31,13 @@ class OpenApiIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class})
     @Import({OpenApiConfig.class, SecurityConfig.class, JwtAuthenticationFilter.class,
-            AuthController.class, OtpController.class, AdminUserController.class, MovieController.class,
+            AuthController.class, OtpController.class, AdminUserController.class, AdminRoleController.class, VerifierController.class, TicketScanHistoryController.class, MovieController.class,
             MovieCreditController.class, MovieMediaController.class, PeopleController.class,
             TheatreController.class, ShowController.class, BookingController.class,
             PaymentController.class, ReviewController.class, WaitingListController.class,
             NotificationController.class})
     static class Config {}
+    @MockitoBean com.slokam.av.repository.TicketScanHistoryRepository scanHistory;
     @MockitoBean ConfiguredOtpService configuredOtp;
     @MockitoBean OtpChannelConfig otpConfig;
     @MockitoBean AuthService auth;
@@ -48,6 +49,7 @@ class OpenApiIntegrationTest {
     @MockitoBean LayoutCompatibilityService layouts;
     @MockitoBean ShowService shows;
     @MockitoBean BookingService bookings;
+    @MockitoBean RoleAccessService roleAccess;
     @MockitoBean PaymentService payments;
     @MockitoBean ReviewService reviews;
     @MockitoBean WaitingListService waiting;
@@ -71,13 +73,19 @@ class OpenApiIntegrationTest {
             assertTrue(value.path("responses").has("400"), path.getKey());
             operations[0]++;
         }));
-        assertEquals(92, operations[0]);
+        assertEquals(96, operations[0]);
         assertEquals(0, paths.path("/api/v1/movies").path("get").path("security").size());
         assertEquals("ADMIN", paths.path("/api/v1/movies").path("post").path("x-required-role").asText());
         assertEquals("AUTHENTICATED", paths.path("/api/v1/bookings/me").path("get").path("x-required-role").asText());
         assertEquals("AUTHENTICATED", paths.path("/api/v1/bookings/{id}/ticket-qr").path("get").path("x-required-role").asText());
-        assertEquals("ADMIN", paths.path("/api/v1/bookings/admin/ticket-scan").path("post").path("x-required-role").asText());
+        assertEquals("ADMIN_OR_VERIFIER", paths.path("/api/v1/bookings/admin/ticket-scan").path("post").path("x-required-role").asText());
         assertEquals("PUBLIC", paths.path("/api/v1/payments/booking/{bookingId}").path("get").path("x-required-role").asText());
+        assertEquals("ADMIN", paths.path("/api/v1/admin/ticket-scans").path("get").path("x-required-role").asText());
+        var verifierShows = paths.path("/api/v1/verifier/shows").path("get");
+        assertEquals("VERIFIER", verifierShows.path("x-required-role").asText());
+        assertEquals(1, verifierShows.path("security").size());
+        assertTrue(verifierShows.path("responses").has("401"));
+        assertTrue(verifierShows.path("responses").has("403"));
         assertTrue(api.path("components").path("schemas").has("ApiErrors"));
         assertTrue(api.path("components").path("schemas").has("MovieRequest"));
         assertTrue(api.path("components").path("schemas").has("EmailOtpResult"));

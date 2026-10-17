@@ -2,5 +2,8 @@ package com.slokam.av.entity;
 
 public enum Role {
     USER,
-    ADMIN
+    ADMIN,
+    VERIFIER,
+    THEATER_MANAGER,
+    MOVIE_MAKER
 }

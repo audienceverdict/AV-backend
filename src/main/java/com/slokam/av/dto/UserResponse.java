@@ -13,7 +13,12 @@ public record UserResponse(
         String alternativeMobile,
         Role role,
         boolean enabled,
-        Instant createdAt) {
+        Instant createdAt,
+        java.util.Set<Role> roles) {
+    public UserResponse(String id, String name, String mobile, String email,
+            String alternativeMobile, Role role, boolean enabled, Instant createdAt) {
+        this(id, name, mobile, email, alternativeMobile, role, enabled, createdAt, java.util.Set.of(role));
+    }
     public static UserResponse of(User u) {
         return new UserResponse(
                 u.id,
@@ -23,6 +28,7 @@ public record UserResponse(
                 u.alternativeMobile,
                 u.role,
                 u.enabled,
-                u.createdAt);
+                u.createdAt,
+                u.effectiveRoles());
     }
 }

@@ -181,6 +181,8 @@ public class AuthService {
     public UserResponse role(String id, Role role) {
         log.debug("Processing AuthService.role");
         var u = get(id);
+        if (role != Role.USER && role != Role.ADMIN)
+            throw new ApiException(400, "INVALID_PRIMARY_ROLE", "Use the additional roles endpoint for staff roles");
         u.role = role;
         log.info("User role updated userId={} role={}", id, role);
         return UserResponse.of(users.save(u));

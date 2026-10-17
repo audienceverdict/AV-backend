@@ -21,9 +21,11 @@ import java.util.*;
 @RequestMapping("/api/v1/bookings")
 public class BookingController {
     private final BookingService service;
+    private final com.slokam.av.service.RoleAccessService roleAccess;
 
-    public BookingController(BookingService service) {
+    public BookingController(BookingService service, com.slokam.av.service.RoleAccessService roleAccess) {
         this.service = service;
+        this.roleAccess = roleAccess;
     }
 
     @io.swagger.v3.oas.annotations.Operation(summary = "List bookings owned by the authenticated account", description = "List bookings owned by the authenticated account.")
@@ -102,6 +104,7 @@ public class BookingController {
     @PostMapping("/admin/ticket-scan")
     public com.slokam.av.dto.TicketVerificationResponse verifyTicket(
             @Valid @RequestBody VerifyTicketRequest request, Principal principal) {
+        roleAccess.requireTicketScanAccess(principal.getName(), request.showId());
         return service.verifyTicket(request.qrPayload(), request.showId(), principal.getName());
     }
 }

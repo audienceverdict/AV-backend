@@ -19,7 +19,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                         .orElseThrow(() -> new UsernameNotFoundException("Account unavailable"));
         return org.springframework.security.core.userdetails.User.withUsername(u.id)
                 .password("")
-                .roles(u.role.name())
+                .roles(u.effectiveRoles().stream().map(Enum::name).toArray(String[]::new))
                 .disabled(!u.enabled)
                 .build();
     }

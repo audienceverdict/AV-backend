@@ -48,6 +48,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
                                         .authenticated()
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/bookings/admin/ticket-scan")
+                                        .hasAnyRole("ADMIN", "VERIFIER")
                                         .requestMatchers(
                                                 "/api/v1/admin/**",
                                                 "/api/v1/bookings/admin/**",
@@ -67,6 +69,7 @@ public class SecurityConfig {
                                         .requestMatchers(HttpMethod.DELETE, "/api/v1/people/**").hasRole("ADMIN")
                                         .requestMatchers(HttpMethod.PATCH, "/api/v1/movies/**", "/api/v1/people/**").hasRole("ADMIN")
                                         .requestMatchers(HttpMethod.GET, "/api/v1/theatres/screens/*/layout-compatibility").hasRole("ADMIN")
+                                        .requestMatchers("/api/v1/verifier/**").hasRole("VERIFIER")
                                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
                                         .permitAll()
                                         .requestMatchers(

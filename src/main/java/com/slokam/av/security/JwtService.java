@@ -46,6 +46,7 @@ public class JwtService {
                         .claim("userId", user.id)
                         .claim("mobile", user.mobile)
                         .claim("role", user.role.name())
+                        .claim("roles", user.effectiveRoles().stream().map(Enum::name).toList())
                         .issuedAt(now)
                         .expiresAt(now.plusMillis(expiration))
                         .build();

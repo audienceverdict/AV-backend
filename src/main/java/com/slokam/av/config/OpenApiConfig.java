@@ -40,19 +40,21 @@ public class OpenApiConfig {
         return api -> {
             ModelConverters.getInstance().readAll(ApiErrors.class).forEach(api.getComponents()::addSchemas);
             api.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
+            boolean ticketScan = method.name().equals("POST") && path.equals("/api/v1/bookings/admin/ticket-scan");
+            boolean verifier = path.startsWith("/api/v1/verifier/");
             boolean get = method.name().equals("GET");
             boolean admin = path.startsWith("/api/v1/admin/") || path.contains("/admin")
                     || path.endsWith("/layout-compatibility")
                     || (!get && (path.startsWith("/api/v1/movies") || path.startsWith("/api/v1/people")
                     || path.startsWith("/api/v1/theatres") || path.startsWith("/api/v1/shows")));
-            boolean authenticated = admin || path.equals("/api/v1/auth/me")
+            boolean authenticated = verifier || admin || path.equals("/api/v1/auth/me")
                     || path.startsWith("/api/v1/bookings") || path.startsWith("/api/v1/waiting-list")
                     || path.equals("/api/v1/notifications")
                     || (!get && !path.startsWith("/api/v1/auth/email-otp/") && !path.startsWith("/api/v1/auth/otp/"));
             operation.setSecurity(authenticated ? List.of(new SecurityRequirement().addList("bearerAuth")) : List.of());
-            operation.addExtension("x-required-role", admin ? "ADMIN" : authenticated ? "AUTHENTICATED" : "PUBLIC");
+            operation.addExtension("x-required-role", ticketScan ? "ADMIN_OR_VERIFIER" : verifier ? "VERIFIER" : admin ? "ADMIN" : authenticated ? "AUTHENTICATED" : "PUBLIC");
             operation.setDescription(operation.getDescription() + " Access: "
-                    + (admin ? "ADMIN role required." : authenticated ? "Authenticated account required." : "Public."));
+                    + (ticketScan ? "ADMIN or VERIFIER role required; verifiers must be assigned to the show." : verifier ? "Enabled VERIFIER account required." : admin ? "ADMIN role required." : authenticated ? "Authenticated account required." : "Public."));
             var responses = operation.getResponses();
             responses.putIfAbsent("400", error("Invalid request, malformed JSON, invalid parameter or failed validation."));
             if (authenticated) responses.putIfAbsent("401", error("Authentication required or token invalid/expired."));
